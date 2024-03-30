@@ -37,9 +37,7 @@ pub async fn get_rust_repository_good_first_issue(
 ) -> Result<Response, RustGoodFirstIssuesError> {
     let repo = GithubRepository::new(state.github_settings.clone())?;
 
-    let rust_repositories = repo
-        .get_rust_repository_issues(path_params.0, params.0)
-        .await?;
+    let rust_repositories = repo.get_repository_issues(path_params.0, params.0).await?;
 
     return Ok((StatusCode::OK, Json(rust_repositories)).into_response());
 }

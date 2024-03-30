@@ -1,4 +1,3 @@
-use chrono::DateTime;
 use reqwest::{header, Client, Url};
 
 use super::models::{
@@ -66,36 +65,12 @@ impl GithubRepository {
             .await
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
-        tracing::info!("Response headers: {:?}", response.headers());
-
-        //TODO: Handle different status error codes,like 404 or 500
-        println!("status: {:?}", response.status());
-
-        println!(
-            "retry-after header: {:?}",
-            response.headers().get("retry-after")
-        );
-
-        println!(
-            "x-ratelimit-remaining header: {:?}",
-            response.headers().get("x-ratelimit-remaining")
-        );
-
-        let rate_limit_reset = match response.headers().get("x-ratelimit-reset") {
-            Some(value) => Some(value.to_str().unwrap().parse::<i64>().unwrap()),
-            None => None,
-        };
-        let rate_limit_reset_time = match rate_limit_reset {
-            Some(value) => Some(DateTime::from_timestamp(value, 0).unwrap()),
-            None => None,
-        };
-
-        println!("etag: {:?}", response.headers().get("etag"));
-
-        println!(
-            "last-modified: {:?}",
-            response.headers().get("last-modified")
-        );
+        if !response.status().is_success() {
+            return Err(RustGoodFirstIssuesError::GithubAPIError(
+                response.status(),
+                "Github API error while fetching repositories".to_string(),
+            ));
+        }
 
         let json: SearchGithubRepositoriesResponseAPI = response
             .json()
@@ -123,7 +98,7 @@ impl GithubRepository {
         })
     }
 
-    pub async fn get_rust_repository_issues(
+    pub async fn get_repository_issues(
         &self,
         path_params: GetRustRepositoryGoodFirstIssuesPathParams,
         params: GetRustRepositoryGoodFirstIssuesParams,
@@ -153,29 +128,12 @@ impl GithubRepository {
             .await
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
-        //TODO: Handle different status error codes, like 404 or 500
-
-        println!(
-            "retry-after header: {:?}",
-            response.headers().get("retry-after")
-        );
-
-        println!(
-            "x-ratelimit-remaining header: {:?}",
-            response.headers().get("x-ratelimit-remaining")
-        );
-
-        println!(
-            "x-ratelimit-reset: {:?}",
-            response.headers().get("x-ratelimit-reset")
-        );
-
-        println!("etag: {:?}", response.headers().get("etag"));
-
-        println!(
-            "last-modified: {:?}",
-            response.headers().get("last-modified")
-        );
+        if !response.status().is_success() {
+            return Err(RustGoodFirstIssuesError::GithubAPIError(
+                response.status(),
+                "Github API error while fetching issues".to_string(),
+            ));
+        }
 
         let json: Vec<GithubIssueAPI> = response
             .json()
