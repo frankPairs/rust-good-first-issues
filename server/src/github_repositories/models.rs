@@ -1,0 +1,113 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize)]
+pub struct SearchGithubRepositoriesResponseAPI {
+    pub total_count: u32,
+    pub items: Vec<GithubRepositoryAPI>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GithubRepositoryAPI {
+    pub id: u32,
+    pub full_name: String,
+    pub private: bool,
+    pub html_url: String,
+    pub description: String,
+    pub stargazers_count: u32,
+    pub open_issues_count: u32,
+    pub has_issues: bool,
+    pub owner: GithubRepositoryOwnerAPI,
+    pub license: GithubRepositoryLicenseAPI,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GithubIssueAPI {
+    pub id: u32,
+    pub title: String,
+    pub description: Option<String>,
+    pub body: Option<String>,
+    pub html_url: String,
+    pub state: GithubIssueState,
+    pub pull_request: Option<GithubPullRequestApi>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GithubPullRequestApi {
+    pub html_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GithubRepositoryOwnerAPI {
+    pub avatar_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GithubRepositoryLicenseAPI {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GithubRepository {
+    pub id: u32,
+    pub url: String,
+    pub name: String,
+    pub private: bool,
+    pub avatar_url: String,
+    pub description: String,
+    pub stars_count: u32,
+    pub open_issues_count: u32,
+    pub has_issues: bool,
+    pub license: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GithubIssue {
+    pub id: u32,
+    pub title: String,
+    pub description: Option<String>,
+    pub body: Option<String>,
+    pub url: String,
+    pub state: GithubIssueState,
+    pub pull_request: Option<GithubPullRequest>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GithubPullRequest {
+    pub url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GithubIssueState {
+    Open,
+    Close,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetRustRepositoriesParams {
+    pub per_page: Option<u32>,
+    pub page: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetRustRepositoryGoodFirstIssuesParams {
+    pub owner: String,
+    pub per_page: Option<u32>,
+    pub page: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetRustRepositoryGoodFirstIssuesPathParams {
+    pub repo: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GetRustRepositoryGoodFirstIssuesResponse {
+    pub items: Vec<GithubIssue>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GetRustRepositoriesResponse {
+    pub total_count: u32,
+    pub items: Vec<GithubRepository>,
+}
