@@ -5,7 +5,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use std::path;
 use std::sync::Arc;
 
 use crate::errors::RustGoodFirstIssuesError;
