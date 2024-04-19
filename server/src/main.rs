@@ -4,15 +4,16 @@ mod github_repositories;
 mod state;
 mod telemetry;
 
-use std::sync::Arc;
-
 use anyhow::Error;
 use axum::Router;
+use bb8_redis::RedisConnectionManager;
+use std::sync::Arc;
+use tower_http::cors::{Any, CorsLayer};
+
 use config::get_app_settings;
 use github_repositories::router::GithubRepositoryRouter;
 use state::AppState;
 use telemetry::{get_subscriber, init_subscriber};
-use tower_http::cors::{Any, CorsLayer};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -27,8 +28,15 @@ async fn main() -> Result<(), Error> {
     let settings = get_app_settings().expect("Unable to get server settings");
     let addr = settings.application.get_addr()?;
     let github_settings = settings.github;
+    let redis_settings = settings.redis;
 
-    let state = Arc::new(AppState { github_settings });
+    let redis_manager = RedisConnectionManager::new(redis_settings.url).unwrap();
+    let redis_pool = bb8::Pool::builder().build(redis_manager).await.unwrap();
+
+    let state = Arc::new(AppState {
+        github_settings,
+        redis_pool,
+    });
 
     let app = Router::new()
         .layer(CorsLayer::new().allow_origin(Any))

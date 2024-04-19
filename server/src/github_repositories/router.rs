@@ -1,5 +1,5 @@
 use crate::{
-    github_repositories::handlers::{get_rust_repositories, get_rust_repository_good_first_issue},
+    github_repositories::handlers::{get_repository_good_first_issues, get_rust_repositories},
     state::AppState,
 };
 use axum::{routing, Router};
@@ -13,7 +13,7 @@ impl GithubRepositoryRouter {
             .route("/", routing::get(get_rust_repositories))
             .route(
                 "/:repo/good-first-issues",
-                routing::get(get_rust_repository_good_first_issue),
+                routing::get(get_repository_good_first_issues),
             )
     }
 }

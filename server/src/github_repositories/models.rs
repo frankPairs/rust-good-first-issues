@@ -1,3 +1,4 @@
+use redis_macros::FromRedisValue;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -46,7 +47,7 @@ pub struct GithubRepositoryLicenseAPI {
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GithubRepository {
     pub id: u32,
     pub url: String,
@@ -60,7 +61,7 @@ pub struct GithubRepository {
     pub license: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GithubIssue {
     pub id: u32,
     pub title: String,
@@ -71,12 +72,12 @@ pub struct GithubIssue {
     pub pull_request: Option<GithubPullRequest>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GithubPullRequest {
     pub url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum GithubIssueState {
     Open,
@@ -87,6 +88,12 @@ pub enum GithubIssueState {
 pub struct GetRustRepositoriesParams {
     pub per_page: Option<u32>,
     pub page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRedisValue)]
+pub struct GetRustRepositoriesResponse {
+    pub total_count: u32,
+    pub items: Vec<GithubRepository>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,13 +108,7 @@ pub struct GetRustRepositoryGoodFirstIssuesPathParams {
     pub repo: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRedisValue)]
 pub struct GetRustRepositoryGoodFirstIssuesResponse {
     pub items: Vec<GithubIssue>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct GetRustRepositoriesResponse {
-    pub total_count: u32,
-    pub items: Vec<GithubRepository>,
 }

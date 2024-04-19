@@ -5,39 +5,76 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use std::path;
 use std::sync::Arc;
 
 use crate::errors::RustGoodFirstIssuesError;
 use crate::state::AppState;
 
 use crate::github_repositories::models::GetRustRepositoriesParams;
-use crate::github_repositories::repositories::GithubRepository;
+use crate::github_repositories::repositories::GithubRepositoriesHttpRepository;
 
 use super::models::{
     GetRustRepositoryGoodFirstIssuesParams, GetRustRepositoryGoodFirstIssuesPathParams,
 };
+use super::repositories::{
+    GithubGoodFirstIssuesHttpRepository, GithubGoodFirstIssuesRedisRepository,
+    GithubRepositoriesRedisRepository,
+};
 
-#[tracing::instrument(name = "Get rust repositories")]
+#[tracing::instrument(name = "Get rust repositories", skip(state))]
 pub async fn get_rust_repositories(
     state: State<Arc<AppState>>,
     params: Query<GetRustRepositoriesParams>,
 ) -> Result<Response, RustGoodFirstIssuesError> {
-    let repo = GithubRepository::new(state.github_settings.clone())?;
+    let mut repositories_redis_repo =
+        GithubRepositoriesRedisRepository::new(&state.redis_pool).await?;
+    let query_params = params.0;
 
-    let rust_repositories = repo.get_rust_repositories(params.0).await?;
+    if repositories_redis_repo.contains(&query_params).await? {
+        let res = repositories_redis_repo.get(&query_params).await?;
 
-    return Ok((StatusCode::OK, Json(rust_repositories)).into_response());
+        return Ok((StatusCode::OK, Json(res)).into_response());
+    }
+
+    let repositories_http_repo =
+        GithubRepositoriesHttpRepository::new(state.github_settings.clone())?;
+    let res = repositories_http_repo.get(&query_params).await?;
+
+    repositories_redis_repo
+        .set(&query_params, res.clone())
+        .await?;
+
+    return Ok((StatusCode::OK, Json(res)).into_response());
 }
 
-#[tracing::instrument(name = "Get rust repository good first issues")]
-pub async fn get_rust_repository_good_first_issue(
+#[tracing::instrument(name = "Get repository good first issues", skip(state))]
+pub async fn get_repository_good_first_issues(
     state: State<Arc<AppState>>,
-    path_params: Path<GetRustRepositoryGoodFirstIssuesPathParams>,
+    path: Path<GetRustRepositoryGoodFirstIssuesPathParams>,
     params: Query<GetRustRepositoryGoodFirstIssuesParams>,
 ) -> Result<Response, RustGoodFirstIssuesError> {
-    let repo = GithubRepository::new(state.github_settings.clone())?;
+    let mut issues_redis_repo =
+        GithubGoodFirstIssuesRedisRepository::new(&state.redis_pool).await?;
+    let query_params = params.0;
+    let path_params = path.0;
 
-    let rust_repositories = repo.get_repository_issues(path_params.0, params.0).await?;
+    if issues_redis_repo
+        .contains(&path_params, &query_params)
+        .await?
+    {
+        let res = issues_redis_repo.get(&path_params, &query_params).await?;
 
-    return Ok((StatusCode::OK, Json(rust_repositories)).into_response());
+        return Ok((StatusCode::OK, Json(res)).into_response());
+    }
+
+    let issues_http_repo = GithubGoodFirstIssuesHttpRepository::new(state.github_settings.clone())?;
+
+    let res = issues_http_repo.get(&path_params, &query_params).await?;
+
+    issues_redis_repo
+        .set(&path_params, &query_params, res.clone())
+        .await?;
+
+    return Ok((StatusCode::OK, Json(res)).into_response());
 }
