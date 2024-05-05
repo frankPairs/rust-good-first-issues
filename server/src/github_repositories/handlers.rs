@@ -11,14 +11,12 @@ use crate::errors::RustGoodFirstIssuesError;
 use crate::state::AppState;
 
 use crate::github_repositories::models::GetRustRepositoriesParams;
-use crate::github_repositories::repositories::GithubRepositoriesHttpRepository;
 
 use super::models::{
     GetRustRepositoryGoodFirstIssuesParams, GetRustRepositoryGoodFirstIssuesPathParams,
 };
 use super::repositories::{
-    GithubGoodFirstIssuesHttpRepository, GithubGoodFirstIssuesRedisRepository,
-    GithubRepositoriesRedisRepository,
+    GithubGoodFirstIssuesRedisRepository, GithubHttpRepository, GithubRepositoriesRedisRepository,
 };
 
 #[tracing::instrument(name = "Get rust repositories", skip(state))]
@@ -36,9 +34,8 @@ pub async fn get_rust_repositories(
         return Ok((StatusCode::OK, Json(res)).into_response());
     }
 
-    let repositories_http_repo =
-        GithubRepositoriesHttpRepository::new(state.github_settings.clone())?;
-    let res = repositories_http_repo.get(&query_params).await?;
+    let github_http_repo = GithubHttpRepository::new(state.github_settings.clone())?;
+    let res = github_http_repo.get_repositories(&query_params).await?;
 
     repositories_redis_repo
         .set(&query_params, res.clone())
@@ -67,9 +64,10 @@ pub async fn get_repository_good_first_issues(
         return Ok((StatusCode::OK, Json(res)).into_response());
     }
 
-    let issues_http_repo = GithubGoodFirstIssuesHttpRepository::new(state.github_settings.clone())?;
-
-    let res = issues_http_repo.get(&path_params, &query_params).await?;
+    let github_http_repo = GithubHttpRepository::new(state.github_settings.clone())?;
+    let res = github_http_repo
+        .get_good_first_issues(&path_params, &query_params)
+        .await?;
 
     issues_redis_repo
         .set(&path_params, &query_params, res.clone())
