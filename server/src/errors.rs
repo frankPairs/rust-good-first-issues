@@ -1,7 +1,6 @@
 use axum::{
-    http::{HeaderMap, HeaderValue, StatusCode},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::get,
 };
 
 #[derive(Debug)]
