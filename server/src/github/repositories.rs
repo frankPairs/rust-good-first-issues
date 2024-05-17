@@ -1,6 +1,5 @@
-use bb8::{Pool, PooledConnection};
+use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
-use redis::{AsyncCommands, JsonAsyncCommands};
 use reqwest::Client;
 
 use super::http_client::GithubHttpClient;
@@ -10,6 +9,7 @@ use super::models::{
     GithubIssue, GithubIssueAPI, GithubPullRequest, SearchGithubRepositoriesResponseAPI,
 };
 use crate::github::models::GithubRepository as GithubRepositoryModel;
+use crate::redis_repository::RedisRepository;
 use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 
 const DEFAULT_PER_PAGE: u32 = 10;
@@ -164,19 +164,16 @@ impl GoodFirstIssuesHttpRepository {
 
 #[derive(Debug)]
 pub struct RepositoriesRedisRepository<'a> {
-    pub redis_conn: PooledConnection<'a, RedisConnectionManager>,
+    pub redis_repo: RedisRepository<'a>,
 }
 
 impl<'a> RepositoriesRedisRepository<'a> {
     pub async fn new(
         redis_pool: &'a Pool<RedisConnectionManager>,
     ) -> Result<Self, RustGoodFirstIssuesError> {
-        let redis_conn = redis_pool
-            .get()
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisConnectionError)?;
+        let redis_repo = RedisRepository::new(redis_pool).await?;
 
-        Ok(Self { redis_conn })
+        Ok(Self { redis_repo })
     }
 
     // It stores some useful information about Github repositories. Filters of the HTTP request are used as a key.
@@ -192,17 +189,7 @@ impl<'a> RepositoriesRedisRepository<'a> {
     ) -> Result<(), RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(params);
 
-        self.redis_conn
-            .json_set(&key, "$", &repositories_response)
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)?;
-
-        self.redis_conn
-            .expire(&key, REDIS_EXPIRATION_TIME)
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)?;
-
-        Ok(())
+        self.redis_repo.json_set(key, &repositories_response).await
     }
 
     #[tracing::instrument(name = "Get Github repositories from Redis", skip(self))]
@@ -212,13 +199,7 @@ impl<'a> RepositoriesRedisRepository<'a> {
     ) -> Result<GetRustRepositoriesResponse, RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(params);
 
-        let repositories_response: GetRustRepositoriesResponse = self
-            .redis_conn
-            .json_get(&key, "$")
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)?;
-
-        Ok(repositories_response)
+        self.redis_repo.json_get(key).await
     }
 
     #[tracing::instrument(
@@ -231,10 +212,7 @@ impl<'a> RepositoriesRedisRepository<'a> {
     ) -> Result<bool, RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(params);
 
-        self.redis_conn
-            .exists(&key)
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)
+        self.redis_repo.contains(key).await
     }
 
     fn generate_repositories_key(&self, params: &GetRustRepositoriesParams) -> String {
@@ -248,19 +226,16 @@ impl<'a> RepositoriesRedisRepository<'a> {
 
 #[derive(Debug)]
 pub struct GoodFirstIssuesRedisRepository<'a> {
-    pub redis_conn: PooledConnection<'a, RedisConnectionManager>,
+    pub redis_repo: RedisRepository<'a>,
 }
 
 impl<'a> GoodFirstIssuesRedisRepository<'a> {
     pub async fn new(
         redis_pool: &'a Pool<RedisConnectionManager>,
     ) -> Result<Self, RustGoodFirstIssuesError> {
-        let redis_conn = redis_pool
-            .get()
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisConnectionError)?;
+        let redis_repo = RedisRepository::new(redis_pool).await?;
 
-        Ok(Self { redis_conn })
+        Ok(Self { redis_repo })
     }
 
     // It stores some useful information about Github good first issues. Filters of the HTTP request are used as a Redis key.
@@ -277,17 +252,7 @@ impl<'a> GoodFirstIssuesRedisRepository<'a> {
     ) -> Result<(), RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(path_params, params);
 
-        self.redis_conn
-            .json_set(&key, "$", &issues_response)
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)?;
-
-        self.redis_conn
-            .expire(&key, REDIS_EXPIRATION_TIME)
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)?;
-
-        Ok(())
+        self.redis_repo.json_set(key, &issues_response).await
     }
 
     #[tracing::instrument(name = "Get Github good first issues from Redis", skip(self))]
@@ -298,13 +263,7 @@ impl<'a> GoodFirstIssuesRedisRepository<'a> {
     ) -> Result<GetRustRepositoryGoodFirstIssuesResponse, RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(path_params, params);
 
-        let issues_response: GetRustRepositoryGoodFirstIssuesResponse = self
-            .redis_conn
-            .json_get(&key, "$")
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)?;
-
-        Ok(issues_response)
+        self.redis_repo.json_get(key).await
     }
 
     #[tracing::instrument(
@@ -318,10 +277,7 @@ impl<'a> GoodFirstIssuesRedisRepository<'a> {
     ) -> Result<bool, RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(path_params, params);
 
-        self.redis_conn
-            .exists(&key)
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)
+        self.redis_repo.contains(key).await
     }
 
     fn generate_repositories_key(
