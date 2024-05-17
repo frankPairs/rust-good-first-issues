@@ -1,59 +1,42 @@
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
 use redis::{AsyncCommands, JsonAsyncCommands};
-use reqwest::{header, Client, Url};
+use reqwest::Client;
 
+use super::http_client::GithubHttpClient;
 use super::models::{
     GetRustRepositoriesParams, GetRustRepositoriesResponse, GetRustRepositoryGoodFirstIssuesParams,
     GetRustRepositoryGoodFirstIssuesPathParams, GetRustRepositoryGoodFirstIssuesResponse,
     GithubIssue, GithubIssueAPI, GithubPullRequest, SearchGithubRepositoriesResponseAPI,
 };
-use crate::github_repositories::models::GithubRepository as GithubRepositoryModel;
+use crate::github::models::GithubRepository as GithubRepositoryModel;
 use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 
-const GITHUB_API_BASE_URL: &str = "https://api.github.com";
-const GITHUB_API_VERSION: &str = "2022-11-28";
 const DEFAULT_PER_PAGE: u32 = 10;
 const DEFAULT_PAGE: u32 = 1;
 const REDIS_EXPIRATION_TIME: i64 = 600;
 
-#[derive(Debug, serde::Deserialize)]
-struct GithubApiErrorPayload {
-    message: String,
+pub struct RepositoriesHttpRepository {
+    http_client: GithubHttpClient,
 }
 
-pub struct GithubHttpRepository {
-    http_client: Client,
-}
-
-impl GithubHttpRepository {
+impl RepositoriesHttpRepository {
     pub fn new(settings: GithubSettings) -> Result<Self, RustGoodFirstIssuesError> {
         let github_token = settings.get_token();
-        let mut headers = header::HeaderMap::new();
-
-        headers.insert("Accept", "application/vnd.github+json".parse().unwrap());
-        headers.insert(
-            "Authorization",
-            format!("Bearer {}", github_token).parse().unwrap(),
-        );
-        headers.insert("X-GitHub-Api-Version", GITHUB_API_VERSION.parse().unwrap());
-        headers.insert("User-Agent", "frankPairs".parse().unwrap());
-
-        let http_client = Client::builder()
-            .default_headers(headers)
-            .build()
-            .map_err(RustGoodFirstIssuesError::ReqwestError)?;
+        let http_client = GithubHttpClient::new(github_token)?;
 
         Ok(Self { http_client })
     }
 
     #[tracing::instrument(name = "Get Rust repositories from Github API", skip(self))]
-    pub async fn get_repositories(
+    pub async fn get(
         &self,
         params: &GetRustRepositoriesParams,
     ) -> Result<GetRustRepositoriesResponse, RustGoodFirstIssuesError> {
-        let mut url = Url::parse(GITHUB_API_BASE_URL)
-            .map_err(RustGoodFirstIssuesError::ParseUrlError)?
+        let client: &Client = self.http_client.get_client();
+        let mut url = self
+            .http_client
+            .get_base_url()?
             .join("/search/repositories?")
             .map_err(RustGoodFirstIssuesError::ParseUrlError)?;
 
@@ -67,15 +50,14 @@ impl GithubHttpRepository {
             )
             .append_pair("page", &params.page.unwrap_or(DEFAULT_PAGE).to_string());
 
-        let response = self
-            .http_client
+        let response = client
             .get(url)
             .send()
             .await
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
         if !response.status().is_success() {
-            return Err(self.handle_error(response).await);
+            return Err(self.http_client.try_into_error(response).await);
         }
 
         let json: SearchGithubRepositoriesResponseAPI = response
@@ -103,18 +85,29 @@ impl GithubHttpRepository {
                 .collect(),
         })
     }
+}
 
-    #[tracing::instrument(
-        name = "Get Rust repository good first issues from Github API",
-        skip(self)
-    )]
-    pub async fn get_good_first_issues(
+pub struct GoodFirstIssuesHttpRepository {
+    http_client: GithubHttpClient,
+}
+
+impl GoodFirstIssuesHttpRepository {
+    pub fn new(settings: GithubSettings) -> Result<Self, RustGoodFirstIssuesError> {
+        let github_token = settings.get_token();
+        let http_client = GithubHttpClient::new(github_token)?;
+
+        Ok(Self { http_client })
+    }
+
+    pub async fn get(
         &self,
         path_params: &GetRustRepositoryGoodFirstIssuesPathParams,
         params: &GetRustRepositoryGoodFirstIssuesParams,
     ) -> Result<GetRustRepositoryGoodFirstIssuesResponse, RustGoodFirstIssuesError> {
-        let mut url = Url::parse(GITHUB_API_BASE_URL)
-            .map_err(RustGoodFirstIssuesError::ParseUrlError)?
+        let client: &Client = self.http_client.get_client();
+        let mut url = self
+            .http_client
+            .get_base_url()?
             .join(&format!(
                 "/repos/{}/{}/issues?",
                 params.owner, path_params.repo
@@ -131,15 +124,14 @@ impl GithubHttpRepository {
             )
             .append_pair("page", &params.page.unwrap_or(DEFAULT_PAGE).to_string());
 
-        let response = self
-            .http_client
+        let response = client
             .get(url)
             .send()
             .await
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
         if !response.status().is_success() {
-            return Err(self.handle_error(response).await);
+            return Err(self.http_client.try_into_error(response).await);
         }
 
         let json: Vec<GithubIssueAPI> = response
@@ -168,33 +160,14 @@ impl GithubHttpRepository {
                 .collect(),
         })
     }
-
-    async fn handle_error(&self, response: reqwest::Response) -> RustGoodFirstIssuesError {
-        let status_code = response.status();
-        let headers = response.headers().clone();
-        let result: Result<GithubApiErrorPayload, reqwest::Error> = response.json().await;
-
-        match result {
-            Ok(error_payload) => {
-                return RustGoodFirstIssuesError::GithubAPIError(
-                    status_code,
-                    headers,
-                    error_payload.message,
-                );
-            }
-            Err(err) => {
-                return RustGoodFirstIssuesError::ReqwestError(err);
-            }
-        }
-    }
 }
 
 #[derive(Debug)]
-pub struct GithubRepositoriesRedisRepository<'a> {
+pub struct RepositoriesRedisRepository<'a> {
     pub redis_conn: PooledConnection<'a, RedisConnectionManager>,
 }
 
-impl<'a> GithubRepositoriesRedisRepository<'a> {
+impl<'a> RepositoriesRedisRepository<'a> {
     pub async fn new(
         redis_pool: &'a Pool<RedisConnectionManager>,
     ) -> Result<Self, RustGoodFirstIssuesError> {
@@ -274,11 +247,11 @@ impl<'a> GithubRepositoriesRedisRepository<'a> {
 }
 
 #[derive(Debug)]
-pub struct GithubGoodFirstIssuesRedisRepository<'a> {
+pub struct GoodFirstIssuesRedisRepository<'a> {
     pub redis_conn: PooledConnection<'a, RedisConnectionManager>,
 }
 
-impl<'a> GithubGoodFirstIssuesRedisRepository<'a> {
+impl<'a> GoodFirstIssuesRedisRepository<'a> {
     pub async fn new(
         redis_pool: &'a Pool<RedisConnectionManager>,
     ) -> Result<Self, RustGoodFirstIssuesError> {

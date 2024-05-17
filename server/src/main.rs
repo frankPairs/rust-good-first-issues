@@ -1,6 +1,6 @@
 mod config;
 mod errors;
-mod github_repositories;
+mod github;
 mod state;
 mod telemetry;
 
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
 use config::get_app_settings;
-use github_repositories::router::GithubRepositoryRouter;
+use github::router::GithubRepositoryRouter;
 use state::AppState;
 use telemetry::{get_subscriber, init_subscriber};
 

@@ -1,5 +1,5 @@
 use crate::{
-    github_repositories::handlers::{get_repository_good_first_issues, get_rust_repositories},
+    github::handlers::{get_repository_good_first_issues, get_rust_repositories},
     state::AppState,
 };
 use axum::{routing, Router};
