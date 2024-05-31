@@ -9,7 +9,7 @@ use super::models::{
     GithubIssue, GithubIssueAPI, GithubPullRequest, SearchGithubRepositoriesResponseAPI,
 };
 use crate::github::models::GithubRepository as GithubRepositoryModel;
-use crate::redis_client::{RedisClient, RedisOptions};
+use crate::redis_client::RedisClient;
 use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 
 const DEFAULT_PER_PAGE: u32 = 10;
@@ -190,13 +190,7 @@ impl<'a> RepositoriesRedisRepository<'a> {
         let key = self.generate_repositories_key(params);
 
         self.redis_repo
-            .json_set(
-                &repositories_response,
-                RedisOptions {
-                    key,
-                    expiration_time: Some(REDIS_EXPIRATION_TIME),
-                },
-            )
+            .json_set(key, &repositories_response, Some(REDIS_EXPIRATION_TIME))
             .await
     }
 
@@ -207,12 +201,7 @@ impl<'a> RepositoriesRedisRepository<'a> {
     ) -> Result<GetRustRepositoriesResponse, RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(params);
 
-        self.redis_repo
-            .json_get(RedisOptions {
-                key,
-                expiration_time: None,
-            })
-            .await
+        self.redis_repo.json_get(key).await
     }
 
     #[tracing::instrument(
@@ -225,12 +214,7 @@ impl<'a> RepositoriesRedisRepository<'a> {
     ) -> Result<bool, RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(params);
 
-        self.redis_repo
-            .contains(RedisOptions {
-                key,
-                expiration_time: None,
-            })
-            .await
+        self.redis_repo.contains(key).await
     }
 
     fn generate_repositories_key(&self, params: &GetRustRepositoriesParams) -> String {
@@ -270,7 +254,9 @@ impl<'a> GoodFirstIssuesRedisRepository<'a> {
     ) -> Result<(), RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(path_params, params);
 
-        self.redis_repo.json_set(key, &issues_response).await
+        self.redis_repo
+            .json_set(key, &issues_response, Some(REDIS_EXPIRATION_TIME))
+            .await
     }
 
     #[tracing::instrument(name = "Get Github good first issues from Redis", skip(self))]

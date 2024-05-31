@@ -6,12 +6,6 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::errors::RustGoodFirstIssuesError;
 
 #[derive(Debug)]
-pub struct RedisOptions {
-    pub expiration_time: Option<i64>,
-    pub key: String,
-}
-
-#[derive(Debug)]
 pub struct RedisClient<'a> {
     pub redis_conn: PooledConnection<'a, RedisConnectionManager>,
 }
@@ -32,17 +26,18 @@ impl<'a> RedisClient<'a> {
     #[tracing::instrument(name = "Store information on Redis using a key", skip(self, data))]
     pub async fn json_set<D: Serialize + Sync + Send>(
         &mut self,
+        key: String,
         data: D,
-        opts: RedisOptions,
+        expiration_time: Option<i64>,
     ) -> Result<(), RustGoodFirstIssuesError> {
         self.redis_conn
-            .json_set(&opts.key, "$", &data)
+            .json_set(&key, "$", &data)
             .await
             .map_err(RustGoodFirstIssuesError::RedisError)?;
 
-        if let Some(expiration_time) = opts.expiration_time {
+        if let Some(expiration_time) = expiration_time {
             self.redis_conn
-                .expire(&opts.key, expiration_time)
+                .expire(&key, expiration_time)
                 .await
                 .map_err(RustGoodFirstIssuesError::RedisError)?;
         }
@@ -53,11 +48,11 @@ impl<'a> RedisClient<'a> {
     #[tracing::instrument(name = "Get data from Redis", skip(self))]
     pub async fn json_get<D: DeserializeOwned + FromRedisValue>(
         &mut self,
-        opts: RedisOptions,
+        key: String,
     ) -> Result<D, RustGoodFirstIssuesError> {
         let data: D = self
             .redis_conn
-            .json_get(&opts.key, "$")
+            .json_get(&key, "$")
             .await
             .map_err(RustGoodFirstIssuesError::RedisError)?;
 
@@ -65,9 +60,9 @@ impl<'a> RedisClient<'a> {
     }
 
     #[tracing::instrument(name = "Check if data exists on Redis with a certain key", skip(self))]
-    pub async fn contains(&mut self, opts: RedisOptions) -> Result<bool, RustGoodFirstIssuesError> {
+    pub async fn contains(&mut self, key: String) -> Result<bool, RustGoodFirstIssuesError> {
         self.redis_conn
-            .exists(&opts.key)
+            .exists(&key)
             .await
             .map_err(RustGoodFirstIssuesError::RedisError)
     }
