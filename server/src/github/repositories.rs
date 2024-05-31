@@ -9,7 +9,7 @@ use super::models::{
     GithubIssue, GithubIssueAPI, GithubPullRequest, SearchGithubRepositoriesResponseAPI,
 };
 use crate::github::models::GithubRepository as GithubRepositoryModel;
-use crate::redis_repository::RedisRepository;
+use crate::redis_client::{RedisClient, RedisOptions};
 use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 
 const DEFAULT_PER_PAGE: u32 = 10;
@@ -164,14 +164,14 @@ impl GoodFirstIssuesHttpRepository {
 
 #[derive(Debug)]
 pub struct RepositoriesRedisRepository<'a> {
-    pub redis_repo: RedisRepository<'a>,
+    pub redis_repo: RedisClient<'a>,
 }
 
 impl<'a> RepositoriesRedisRepository<'a> {
     pub async fn new(
         redis_pool: &'a Pool<RedisConnectionManager>,
     ) -> Result<Self, RustGoodFirstIssuesError> {
-        let redis_repo = RedisRepository::new(redis_pool).await?;
+        let redis_repo = RedisClient::new(redis_pool).await?;
 
         Ok(Self { redis_repo })
     }
@@ -189,7 +189,15 @@ impl<'a> RepositoriesRedisRepository<'a> {
     ) -> Result<(), RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(params);
 
-        self.redis_repo.json_set(key, &repositories_response).await
+        self.redis_repo
+            .json_set(
+                &repositories_response,
+                RedisOptions {
+                    key,
+                    expiration_time: Some(REDIS_EXPIRATION_TIME),
+                },
+            )
+            .await
     }
 
     #[tracing::instrument(name = "Get Github repositories from Redis", skip(self))]
@@ -199,7 +207,12 @@ impl<'a> RepositoriesRedisRepository<'a> {
     ) -> Result<GetRustRepositoriesResponse, RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(params);
 
-        self.redis_repo.json_get(key).await
+        self.redis_repo
+            .json_get(RedisOptions {
+                key,
+                expiration_time: None,
+            })
+            .await
     }
 
     #[tracing::instrument(
@@ -212,7 +225,12 @@ impl<'a> RepositoriesRedisRepository<'a> {
     ) -> Result<bool, RustGoodFirstIssuesError> {
         let key = self.generate_repositories_key(params);
 
-        self.redis_repo.contains(key).await
+        self.redis_repo
+            .contains(RedisOptions {
+                key,
+                expiration_time: None,
+            })
+            .await
     }
 
     fn generate_repositories_key(&self, params: &GetRustRepositoriesParams) -> String {
@@ -226,14 +244,14 @@ impl<'a> RepositoriesRedisRepository<'a> {
 
 #[derive(Debug)]
 pub struct GoodFirstIssuesRedisRepository<'a> {
-    pub redis_repo: RedisRepository<'a>,
+    pub redis_repo: RedisClient<'a>,
 }
 
 impl<'a> GoodFirstIssuesRedisRepository<'a> {
     pub async fn new(
         redis_pool: &'a Pool<RedisConnectionManager>,
     ) -> Result<Self, RustGoodFirstIssuesError> {
-        let redis_repo = RedisRepository::new(redis_pool).await?;
+        let redis_repo = RedisClient::new(redis_pool).await?;
 
         Ok(Self { redis_repo })
     }

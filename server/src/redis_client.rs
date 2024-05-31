@@ -5,14 +5,18 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::errors::RustGoodFirstIssuesError;
 
-const REDIS_EXPIRATION_TIME: i64 = 600;
+#[derive(Debug)]
+pub struct RedisOptions {
+    pub expiration_time: Option<i64>,
+    pub key: String,
+}
 
 #[derive(Debug)]
-pub struct RedisRepository<'a> {
+pub struct RedisClient<'a> {
     pub redis_conn: PooledConnection<'a, RedisConnectionManager>,
 }
 
-impl<'a> RedisRepository<'a> {
+impl<'a> RedisClient<'a> {
     pub async fn new(
         redis_pool: &'a Pool<RedisConnectionManager>,
     ) -> Result<Self, RustGoodFirstIssuesError> {
@@ -28,18 +32,20 @@ impl<'a> RedisRepository<'a> {
     #[tracing::instrument(name = "Store information on Redis using a key", skip(self, data))]
     pub async fn json_set<D: Serialize + Sync + Send>(
         &mut self,
-        key: String,
         data: D,
+        opts: RedisOptions,
     ) -> Result<(), RustGoodFirstIssuesError> {
         self.redis_conn
-            .json_set(&key, "$", &data)
+            .json_set(&opts.key, "$", &data)
             .await
             .map_err(RustGoodFirstIssuesError::RedisError)?;
 
-        self.redis_conn
-            .expire(&key, REDIS_EXPIRATION_TIME)
-            .await
-            .map_err(RustGoodFirstIssuesError::RedisError)?;
+        if let Some(expiration_time) = opts.expiration_time {
+            self.redis_conn
+                .expire(&opts.key, expiration_time)
+                .await
+                .map_err(RustGoodFirstIssuesError::RedisError)?;
+        }
 
         Ok(())
     }
@@ -47,11 +53,11 @@ impl<'a> RedisRepository<'a> {
     #[tracing::instrument(name = "Get data from Redis", skip(self))]
     pub async fn json_get<D: DeserializeOwned + FromRedisValue>(
         &mut self,
-        key: String,
+        opts: RedisOptions,
     ) -> Result<D, RustGoodFirstIssuesError> {
         let data: D = self
             .redis_conn
-            .json_get(&key, "$")
+            .json_get(&opts.key, "$")
             .await
             .map_err(RustGoodFirstIssuesError::RedisError)?;
 
@@ -59,9 +65,9 @@ impl<'a> RedisRepository<'a> {
     }
 
     #[tracing::instrument(name = "Check if data exists on Redis with a certain key", skip(self))]
-    pub async fn contains(&mut self, key: String) -> Result<bool, RustGoodFirstIssuesError> {
+    pub async fn contains(&mut self, opts: RedisOptions) -> Result<bool, RustGoodFirstIssuesError> {
         self.redis_conn
-            .exists(&key)
+            .exists(&opts.key)
             .await
             .map_err(RustGoodFirstIssuesError::RedisError)
     }
