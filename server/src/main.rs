@@ -1,7 +1,6 @@
 mod config;
 mod errors;
 mod github;
-mod redis_client;
 mod state;
 mod telemetry;
 

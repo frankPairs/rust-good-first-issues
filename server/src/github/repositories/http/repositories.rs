@@ -1,15 +1,12 @@
-use bb8::Pool;
-use bb8_redis::RedisConnectionManager;
 use reqwest::Client;
 
-use super::http_client::GithubHttpClient;
-use super::models::{
+use crate::github::models::GithubRepository as GithubRepositoryModel;
+use crate::github::models::{
     GetRustRepositoriesParams, GetRustRepositoriesResponse, GetRustRepositoryGoodFirstIssuesParams,
     GetRustRepositoryGoodFirstIssuesPathParams, GetRustRepositoryGoodFirstIssuesResponse,
     GithubIssue, GithubIssueAPI, GithubPullRequest, SearchGithubRepositoriesResponseAPI,
 };
-use crate::github::models::GithubRepository as GithubRepositoryModel;
-use crate::redis_client::{RedisClient, RedisKeyGenerator};
+use crate::github::repositories::http::client::GithubHttpClient;
 use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 
 const DEFAULT_PER_PAGE: u32 = 10;
