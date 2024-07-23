@@ -95,6 +95,10 @@ impl GoodFirstIssuesHttpRepository {
         Ok(Self { http_client })
     }
 
+    #[tracing::instrument(
+        name = "Get Rust good first issues from a Github repository",
+        skip(self)
+    )]
     pub async fn get(
         &self,
         path_params: &GetRustRepositoryGoodFirstIssuesPathParams,
