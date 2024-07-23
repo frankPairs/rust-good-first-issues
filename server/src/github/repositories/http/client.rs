@@ -1,4 +1,3 @@
-use axum::http::HeaderMap;
 use reqwest::{header, Client, Url};
 
 use crate::errors::{RateLimitErrorPayload, RustGoodFirstIssuesError};
