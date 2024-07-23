@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
-use redis::AsyncCommands;
 
 use crate::errors::RustGoodFirstIssuesError;
 

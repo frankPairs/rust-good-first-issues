@@ -6,7 +6,8 @@ use axum::{
 #[derive(Debug)]
 pub enum RustGoodFirstIssuesError {
     ReqwestError(reqwest::Error),
-    GithubAPIError(StatusCode, HeaderMap, String),
+    GithubAPIError(StatusCode, String),
+    GithubRateLimitError(String, RateLimitErrorPayload),
     ParseUrlError(url::ParseError),
     RedisError(redis::RedisError),
     RedisConnectionError(bb8::RunError<redis::RedisError>),
@@ -21,8 +22,11 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             RustGoodFirstIssuesError::ParseUrlError(err) => {
                 write!(f, "Parse url error: {}", err)
             }
-            RustGoodFirstIssuesError::GithubAPIError(status_code, _, message) => {
+            RustGoodFirstIssuesError::GithubAPIError(status_code, message) => {
                 write!(f, "Github API error {}: {}", status_code, message)
+            }
+            RustGoodFirstIssuesError::GithubRateLimitError(message, _) => {
+                write!(f, "Github rate limit error: {}", message)
             }
             RustGoodFirstIssuesError::RedisError(err) => {
                 write!(f, "Redis error: {}", err)
@@ -41,30 +45,66 @@ impl IntoResponse for RustGoodFirstIssuesError {
         tracing::error!("{}", err_message);
 
         match self {
-            // If there is a rate limit error from Github API, we return the rate limit headers, so we can avoid
-            // making unnecessary requests. In that case, the status code will be 429 Too Many Requests.
-            RustGoodFirstIssuesError::GithubAPIError(status_code, headers, _) => {
-                let mut ratelimit_headers = HeaderMap::new();
-
-                if let Some(retry_after) = headers.get("retry-after") {
-                    ratelimit_headers.insert("retry-after", retry_after.clone());
-                }
-
-                if let Some(remaining) = headers.get("x-ratelimit-remaining") {
-                    ratelimit_headers.insert("x-ratelimit-remaining", remaining.clone());
-                }
-
-                if let Some(reset) = headers.get("x-ratelimit-reset") {
-                    ratelimit_headers.insert("x-ratelimit-reset", reset.clone());
-                }
-
-                if !ratelimit_headers.is_empty() {
-                    return (StatusCode::TOO_MANY_REQUESTS, headers, err_message).into_response();
-                }
-
+            RustGoodFirstIssuesError::GithubAPIError(status_code, _) => {
                 (status_code, err_message).into_response()
             }
+            RustGoodFirstIssuesError::GithubRateLimitError(_, _) => {
+                (StatusCode::TOO_MANY_REQUESTS, err_message).into_response()
+            }
             _ => (StatusCode::INTERNAL_SERVER_ERROR, err_message).into_response(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RateLimitErrorPayload {
+    pub retry_after: Option<i32>,
+    pub ratelimit_remaining: Option<i32>,
+    pub ratelimit_reset: Option<i32>,
+}
+
+impl RateLimitErrorPayload {
+    pub fn is_empty(&self) -> bool {
+        return self.retry_after.is_none()
+            || self.ratelimit_remaining.is_none() && self.ratelimit_reset.is_none();
+    }
+
+    pub fn from_response_headers(headers: &HeaderMap) -> Self {
+        let mut retry_after: Option<i32> = None;
+        let mut ratelimit_remaining: Option<i32> = None;
+        let mut ratelimit_reset: Option<i32> = None;
+
+        if let Some(value) = headers.get("retry-after") {
+            let parsed_value = value.to_str().unwrap_or("");
+
+            retry_after = match String::from(parsed_value).parse::<i32>() {
+                Ok(n) => Some(n),
+                Err(_) => None,
+            };
+        }
+
+        if let Some(value) = headers.get("x-ratelimit-remaining") {
+            let parsed_value = value.to_str().unwrap_or("");
+
+            ratelimit_remaining = match String::from(parsed_value).parse::<i32>() {
+                Ok(n) => Some(n),
+                Err(_) => None,
+            };
+        }
+
+        if let Some(value) = headers.get("x-ratelimit-reset") {
+            let parsed_value = value.to_str().unwrap_or("");
+
+            ratelimit_reset = match String::from(parsed_value).parse::<i32>() {
+                Ok(n) => Some(n),
+                Err(_) => None,
+            };
+        }
+
+        RateLimitErrorPayload {
+            ratelimit_remaining,
+            ratelimit_reset,
+            retry_after,
         }
     }
 }

@@ -1,6 +1,7 @@
+use axum::http::HeaderMap;
 use reqwest::{header, Client, Url};
 
-use crate::errors::RustGoodFirstIssuesError;
+use crate::errors::{RateLimitErrorPayload, RustGoodFirstIssuesError};
 
 const GITHUB_API_BASE_URL: &str = "https://api.github.com";
 const GITHUB_API_VERSION: &str = "2022-11-28";
@@ -49,11 +50,19 @@ impl GithubHttpClient {
         let result: Result<GithubApiErrorPayload, reqwest::Error> = response.json().await;
 
         match result {
-            Ok(error_payload) => RustGoodFirstIssuesError::GithubAPIError(
-                status_code,
-                headers,
-                error_payload.message,
-            ),
+            Ok(error_payload) => {
+                let err_message = error_payload.message;
+                let rate_limit_err_payload = RateLimitErrorPayload::from_response_headers(&headers);
+
+                if !rate_limit_err_payload.is_empty() {
+                    return RustGoodFirstIssuesError::GithubRateLimitError(
+                        err_message,
+                        rate_limit_err_payload,
+                    );
+                }
+
+                RustGoodFirstIssuesError::GithubAPIError(status_code, err_message)
+            }
             Err(err) => RustGoodFirstIssuesError::ReqwestError(err),
         }
     }

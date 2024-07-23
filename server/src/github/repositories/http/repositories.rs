@@ -11,7 +11,6 @@ use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 
 const DEFAULT_PER_PAGE: u32 = 10;
 const DEFAULT_PAGE: u32 = 1;
-const REDIS_EXPIRATION_TIME: i64 = 600;
 
 pub struct RepositoriesHttpRepository {
     http_client: GithubHttpClient,
