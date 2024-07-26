@@ -40,7 +40,7 @@ async fn main() -> Result<(), Error> {
 
     let app = Router::new()
         .layer(CorsLayer::new().allow_origin(Any))
-        .nest("/github_repositories", GithubRepositoryRouter::build())
+        .nest("/github", GithubRepositoryRouter::build())
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
