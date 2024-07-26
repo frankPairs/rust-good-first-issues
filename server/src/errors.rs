@@ -69,8 +69,11 @@ pub struct RateLimitErrorPayload {
 }
 
 impl RateLimitErrorPayload {
+    // When none of the rate limit headers is presents, there is not any rate limit error
     pub fn is_empty(&self) -> bool {
-        return self.get_expiration_time() == 0;
+        return self.retry_after.is_none()
+            && self.ratelimit_remaining.is_none()
+            && self.ratelimit_reset.is_none();
     }
 
     // Returns the rate limit expiration time in seconds. If the function returns a value greater than 0,
