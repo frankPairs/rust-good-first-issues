@@ -20,8 +20,8 @@ use super::repositories::http::repositories::{
     GithubGoodFirstIssuesHttpRepository, GithubRepositoriesHttpRepository,
 };
 use super::repositories::redis::repositories::{
-    GithubGoodFirstIssuesKeyGenerator, GithubGoodFirstIssuesRateLimitKeyGenerator,
-    GithubRedisRepository, GithubRepositoriesKeyGenerator, GithubRepositoriesRateLimitKeyGenerator,
+    GithubGoodFirstIssuesKeyGenerator, GithubRateLimitErrorKeyGenerator, GithubRedisRepository,
+    GithubRepositoriesKeyGenerator,
 };
 
 #[tracing::instrument(name = "Get Github repositories handler", skip(state))]
@@ -32,6 +32,13 @@ pub async fn get_github_repositories(
     let mut redis_repo = GithubRedisRepository::new(&state.redis_pool).await?;
     let params = params.0;
     let github_repositories_key = GithubRepositoriesKeyGenerator { params: &params };
+    let rate_limit_key = GithubRateLimitErrorKeyGenerator {
+        src_key_generator: &github_repositories_key,
+    };
+
+    if redis_repo.contains(&rate_limit_key).await? {
+        return Ok((StatusCode::TOO_MANY_REQUESTS).into_response());
+    }
 
     if redis_repo.contains(&github_repositories_key).await? {
         let res: GetGithubRepositoriesResponse = redis_repo.get(&github_repositories_key).await?;
@@ -52,8 +59,6 @@ pub async fn get_github_repositories(
         }
         Err(err) => match err {
             RustGoodFirstIssuesError::GithubRateLimitError(_, err_payload) => {
-                let rate_limit_key = GithubRepositoriesRateLimitKeyGenerator { params: &params };
-
                 redis_repo
                     .set(
                         &rate_limit_key,
@@ -62,9 +67,9 @@ pub async fn get_github_repositories(
                     )
                     .await?;
 
-                Err(err)
+                Ok(err.into_response())
             }
-            _ => Err(err),
+            err => Ok(err.into_response()),
         },
     }
 }
@@ -82,6 +87,13 @@ pub async fn get_github_repository_good_first_issues(
         params: &params,
         path_params: &path_params,
     };
+    let rate_limit_key = GithubRateLimitErrorKeyGenerator {
+        src_key_generator: &good_first_issues_key,
+    };
+
+    if redis_repo.contains(&rate_limit_key).await? {
+        return Ok((StatusCode::TOO_MANY_REQUESTS).into_response());
+    }
 
     if redis_repo.contains(&good_first_issues_key).await? {
         let res: GetGithubRepositoryGoodFirstIssuesResponse =
@@ -103,11 +115,6 @@ pub async fn get_github_repository_good_first_issues(
         }
         Err(err) => match err {
             RustGoodFirstIssuesError::GithubRateLimitError(_, err_payload) => {
-                let rate_limit_key = GithubGoodFirstIssuesRateLimitKeyGenerator {
-                    params: &params,
-                    path_params: &path_params,
-                };
-
                 redis_repo
                     .set(
                         &rate_limit_key,
@@ -116,9 +123,9 @@ pub async fn get_github_repository_good_first_issues(
                     )
                     .await?;
 
-                Err(err)
+                Ok(err.into_response())
             }
-            _ => Err(err),
+            err => Ok(err.into_response()),
         },
     }
 }

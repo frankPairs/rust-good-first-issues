@@ -16,7 +16,7 @@ const DEFAULT_PAGE: u32 = 1;
 // Expiration time is represented in seconds
 const REDIS_EXPIRATION_TIME: i64 = 600;
 
-trait RedisKeyGenerator {
+pub trait RedisKeyGenerator {
     fn generate_key(&self) -> String;
 }
 
@@ -29,21 +29,6 @@ impl<'a> RedisKeyGenerator for GithubRepositoriesKeyGenerator<'a> {
     fn generate_key(&self) -> String {
         format!(
             "github:repositories:rust:per_page={}&page={}",
-            self.params.per_page.unwrap_or(DEFAULT_PER_PAGE),
-            self.params.page.unwrap_or(DEFAULT_PAGE)
-        )
-    }
-}
-
-#[derive(Debug)]
-pub struct GithubRepositoriesRateLimitKeyGenerator<'a> {
-    pub params: &'a GetGithubRepositoriesParams,
-}
-
-impl<'a> RedisKeyGenerator for GithubRepositoriesRateLimitKeyGenerator<'a> {
-    fn generate_key(&self) -> String {
-        format!(
-            "github:repositories:rate_limit:per_page={}&page={}",
             self.params.per_page.unwrap_or(DEFAULT_PER_PAGE),
             self.params.page.unwrap_or(DEFAULT_PAGE)
         )
@@ -69,20 +54,15 @@ impl<'a> RedisKeyGenerator for GithubGoodFirstIssuesKeyGenerator<'a> {
 }
 
 #[derive(Debug)]
-pub struct GithubGoodFirstIssuesRateLimitKeyGenerator<'a> {
-    pub path_params: &'a GetGithubRepositoryGoodFirstIssuesPathParams,
-    pub params: &'a GetGithubRepositoryGoodFirstIssuesParams,
+pub struct GithubRateLimitErrorKeyGenerator<'a, K: RedisKeyGenerator> {
+    pub src_key_generator: &'a K,
 }
 
-impl<'a> RedisKeyGenerator for GithubGoodFirstIssuesRateLimitKeyGenerator<'a> {
+impl<'a, K: RedisKeyGenerator> RedisKeyGenerator for GithubRateLimitErrorKeyGenerator<'a, K> {
     fn generate_key(&self) -> String {
-        format!(
-            "github:issues:rate_limig:per_page={}&page={}&owner={}&repository_name={}&labels=good_first_issue",
-            self.params.per_page.unwrap_or(DEFAULT_PER_PAGE),
-            self.params.page.unwrap_or(DEFAULT_PAGE),
-            self.params.owner,
-            self.path_params.repo
-        )
+        let source_key = self.src_key_generator.generate_key();
+
+        format!("errors:rate_limit:{}", source_key)
     }
 }
 
