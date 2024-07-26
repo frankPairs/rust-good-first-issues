@@ -6,8 +6,8 @@ use bb8_redis::RedisConnectionManager;
 use super::client::RedisClient;
 use crate::errors::RustGoodFirstIssuesError;
 use crate::github::models::{
-    GetRustRepositoriesParams, GetRustRepositoryGoodFirstIssuesParams,
-    GetRustRepositoryGoodFirstIssuesPathParams,
+    GetGithubRepositoriesParams, GetGithubRepositoryGoodFirstIssuesParams,
+    GetGithubRepositoryGoodFirstIssuesPathParams,
 };
 use redis::{AsyncCommands, JsonAsyncCommands};
 
@@ -21,7 +21,7 @@ trait RedisKeyGenerator {
 
 #[derive(Debug)]
 pub struct GithubRepositoriesKeyGenerator<'a> {
-    pub params: &'a GetRustRepositoriesParams,
+    pub params: &'a GetGithubRepositoriesParams,
 }
 
 impl<'a> RedisKeyGenerator for GithubRepositoriesKeyGenerator<'a> {
@@ -36,8 +36,8 @@ impl<'a> RedisKeyGenerator for GithubRepositoriesKeyGenerator<'a> {
 
 #[derive(Debug)]
 pub struct GithubGoodFirstIssuesKeyGenerator<'a> {
-    pub path_params: &'a GetRustRepositoryGoodFirstIssuesPathParams,
-    pub params: &'a GetRustRepositoryGoodFirstIssuesParams,
+    pub path_params: &'a GetGithubRepositoryGoodFirstIssuesPathParams,
+    pub params: &'a GetGithubRepositoryGoodFirstIssuesParams,
 }
 
 impl<'a> RedisKeyGenerator for GithubGoodFirstIssuesKeyGenerator<'a> {

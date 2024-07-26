@@ -29,11 +29,11 @@ pub struct GithubIssueAPI {
     pub body: Option<String>,
     pub html_url: String,
     pub state: GithubIssueState,
-    pub pull_request: Option<GithubPullRequestApi>,
+    pub pull_request: Option<GithubPullRequestAPI>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct GithubPullRequestApi {
+pub struct GithubPullRequestAPI {
     pub html_url: String,
 }
 
@@ -85,30 +85,30 @@ pub enum GithubIssueState {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct GetRustRepositoriesParams {
+pub struct GetGithubRepositoriesParams {
     pub per_page: Option<u32>,
     pub page: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRedisValue)]
-pub struct GetRustRepositoriesResponse {
+pub struct GetGithubRepositoriesResponse {
     pub total_count: u32,
     pub items: Vec<GithubRepository>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct GetRustRepositoryGoodFirstIssuesParams {
+pub struct GetGithubRepositoryGoodFirstIssuesParams {
     pub owner: String,
     pub per_page: Option<u32>,
     pub page: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct GetRustRepositoryGoodFirstIssuesPathParams {
+pub struct GetGithubRepositoryGoodFirstIssuesPathParams {
     pub repo: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRedisValue)]
-pub struct GetRustRepositoryGoodFirstIssuesResponse {
+pub struct GetGithubRepositoryGoodFirstIssuesResponse {
     pub items: Vec<GithubIssue>,
 }

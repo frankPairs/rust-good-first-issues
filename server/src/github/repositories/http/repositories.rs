@@ -2,9 +2,10 @@ use reqwest::Client;
 
 use crate::github::models::GithubRepository as GithubRepositoryModel;
 use crate::github::models::{
-    GetRustRepositoriesParams, GetRustRepositoriesResponse, GetRustRepositoryGoodFirstIssuesParams,
-    GetRustRepositoryGoodFirstIssuesPathParams, GetRustRepositoryGoodFirstIssuesResponse,
-    GithubIssue, GithubIssueAPI, GithubPullRequest, SearchGithubRepositoriesResponseAPI,
+    GetGithubRepositoriesParams, GetGithubRepositoriesResponse,
+    GetGithubRepositoryGoodFirstIssuesParams, GetGithubRepositoryGoodFirstIssuesPathParams,
+    GetGithubRepositoryGoodFirstIssuesResponse, GithubIssue, GithubIssueAPI, GithubPullRequest,
+    SearchGithubRepositoriesResponseAPI,
 };
 use crate::github::repositories::http::client::GithubHttpClient;
 use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
@@ -12,11 +13,11 @@ use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 const DEFAULT_PER_PAGE: u32 = 10;
 const DEFAULT_PAGE: u32 = 1;
 
-pub struct RepositoriesHttpRepository {
+pub struct GithubRepositoriesHttpRepository {
     http_client: GithubHttpClient,
 }
 
-impl RepositoriesHttpRepository {
+impl GithubRepositoriesHttpRepository {
     pub fn new(settings: GithubSettings) -> Result<Self, RustGoodFirstIssuesError> {
         let github_token = settings.get_token();
         let http_client = GithubHttpClient::new(github_token)?;
@@ -27,8 +28,8 @@ impl RepositoriesHttpRepository {
     #[tracing::instrument(name = "Get Rust repositories from Github API", skip(self))]
     pub async fn get(
         &self,
-        params: &GetRustRepositoriesParams,
-    ) -> Result<GetRustRepositoriesResponse, RustGoodFirstIssuesError> {
+        params: &GetGithubRepositoriesParams,
+    ) -> Result<GetGithubRepositoriesResponse, RustGoodFirstIssuesError> {
         let client: &Client = self.http_client.get_client();
         let mut url = self
             .http_client
@@ -61,7 +62,7 @@ impl RepositoriesHttpRepository {
             .await
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
-        Ok(GetRustRepositoriesResponse {
+        Ok(GetGithubRepositoriesResponse {
             total_count: json.total_count,
             items: json
                 .items
@@ -83,11 +84,11 @@ impl RepositoriesHttpRepository {
     }
 }
 
-pub struct GoodFirstIssuesHttpRepository {
+pub struct GithubGoodFirstIssuesHttpRepository {
     http_client: GithubHttpClient,
 }
 
-impl GoodFirstIssuesHttpRepository {
+impl GithubGoodFirstIssuesHttpRepository {
     pub fn new(settings: GithubSettings) -> Result<Self, RustGoodFirstIssuesError> {
         let github_token = settings.get_token();
         let http_client = GithubHttpClient::new(github_token)?;
@@ -101,9 +102,9 @@ impl GoodFirstIssuesHttpRepository {
     )]
     pub async fn get(
         &self,
-        path_params: &GetRustRepositoryGoodFirstIssuesPathParams,
-        params: &GetRustRepositoryGoodFirstIssuesParams,
-    ) -> Result<GetRustRepositoryGoodFirstIssuesResponse, RustGoodFirstIssuesError> {
+        path_params: &GetGithubRepositoryGoodFirstIssuesPathParams,
+        params: &GetGithubRepositoryGoodFirstIssuesParams,
+    ) -> Result<GetGithubRepositoryGoodFirstIssuesResponse, RustGoodFirstIssuesError> {
         let client: &Client = self.http_client.get_client();
         let mut url = self
             .http_client
@@ -139,7 +140,7 @@ impl GoodFirstIssuesHttpRepository {
             .await
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
-        Ok(GetRustRepositoryGoodFirstIssuesResponse {
+        Ok(GetGithubRepositoryGoodFirstIssuesResponse {
             items: json
                 .into_iter()
                 .map(|issue| GithubIssue {

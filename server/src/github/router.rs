@@ -1,5 +1,5 @@
 use crate::{
-    github::handlers::{get_repository_good_first_issues, get_rust_repositories},
+    github::handlers::{get_github_repositories, get_github_repository_good_first_issues},
     state::AppState,
 };
 use axum::{routing, Router};
@@ -10,10 +10,10 @@ pub struct GithubRepositoryRouter;
 impl GithubRepositoryRouter {
     pub fn build() -> Router<Arc<AppState>> {
         Router::new()
-            .route("/", routing::get(get_rust_repositories))
+            .route("/", routing::get(get_github_repositories))
             .route(
                 "/:repo/good-first-issues",
-                routing::get(get_repository_good_first_issues),
+                routing::get(get_github_repository_good_first_issues),
             )
     }
 }
