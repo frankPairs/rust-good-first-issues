@@ -18,7 +18,7 @@ pub struct GithubRepositoryAPI {
     pub open_issues_count: u32,
     pub has_issues: bool,
     pub owner: GithubRepositoryOwnerAPI,
-    pub license: GithubRepositoryLicenseAPI,
+    pub license: Option<GithubRepositoryLicenseAPI>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,7 +58,7 @@ pub struct GithubRepository {
     pub stars_count: u32,
     pub open_issues_count: u32,
     pub has_issues: bool,
-    pub license: String,
+    pub license: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

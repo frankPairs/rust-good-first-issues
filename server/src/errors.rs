@@ -4,6 +4,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::error::Error;
 
 #[derive(Debug)]
 pub enum RustGoodFirstIssuesError {
@@ -19,6 +20,10 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RustGoodFirstIssuesError::ReqwestError(err) => {
+                tracing::error!("Error req url = {:?}", err.url());
+                tracing::error!("Error status = {:?}", err.status());
+                tracing::error!("Error source = {:?}", err.source());
+
                 write!(f, "External API request error: {}", err)
             }
             RustGoodFirstIssuesError::ParseUrlError(err) => {
@@ -53,6 +58,11 @@ impl IntoResponse for RustGoodFirstIssuesError {
             RustGoodFirstIssuesError::GithubRateLimitError(_, _) => {
                 (StatusCode::TOO_MANY_REQUESTS, err_message).into_response()
             }
+            RustGoodFirstIssuesError::ReqwestError(err) => (
+                err.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                err_message,
+            )
+                .into_response(),
             _ => (StatusCode::INTERNAL_SERVER_ERROR, err_message).into_response(),
         }
     }

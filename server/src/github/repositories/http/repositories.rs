@@ -31,6 +31,7 @@ impl GithubRepositoriesHttpRepository {
         params: &GetGithubRepositoriesParams,
     ) -> Result<GetGithubRepositoriesResponse, RustGoodFirstIssuesError> {
         let client: &Client = self.http_client.get_client();
+
         let mut url = self
             .http_client
             .get_base_url()?
@@ -77,7 +78,10 @@ impl GithubRepositoriesHttpRepository {
                     stars_count: repo.stargazers_count,
                     open_issues_count: repo.open_issues_count,
                     has_issues: repo.has_issues,
-                    license: repo.license.name,
+                    license: match repo.license {
+                        Some(license) => Some(license.name),
+                        None => None,
+                    },
                 })
                 .collect(),
         })
