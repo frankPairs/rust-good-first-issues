@@ -20,7 +20,8 @@ use super::repositories::http::repositories::{
     GithubGoodFirstIssuesHttpRepository, GithubRepositoriesHttpRepository,
 };
 use super::repositories::redis::repositories::{
-    GithubGoodFirstIssuesKeyGenerator, GithubRedisRepository, GithubRepositoriesKeyGenerator,
+    GithubGoodFirstIssuesKeyGenerator, GithubGoodFirstIssuesRateLimitKeyGenerator,
+    GithubRedisRepository, GithubRepositoriesKeyGenerator, GithubRepositoriesRateLimitKeyGenerator,
 };
 
 #[tracing::instrument(name = "Get Github repositories handler", skip(state))]
@@ -30,20 +31,42 @@ pub async fn get_github_repositories(
 ) -> Result<Response, RustGoodFirstIssuesError> {
     let mut redis_repo = GithubRedisRepository::new(&state.redis_pool).await?;
     let params = params.0;
-    let github_repository_key = GithubRepositoriesKeyGenerator { params: &params };
+    let github_repositories_key = GithubRepositoriesKeyGenerator { params: &params };
 
-    if redis_repo.contains(&github_repository_key).await? {
-        let res: GetGithubRepositoriesResponse = redis_repo.get(&github_repository_key).await?;
+    if redis_repo.contains(&github_repositories_key).await? {
+        let res: GetGithubRepositoriesResponse = redis_repo.get(&github_repositories_key).await?;
 
         return Ok((StatusCode::OK, Json(res)).into_response());
     }
 
     let http_repo = GithubRepositoriesHttpRepository::new(state.github_settings.clone())?;
-    let res = http_repo.get(&params).await?;
+    let res_result = http_repo.get(&params).await;
 
-    redis_repo.set(&github_repository_key, res.clone()).await?;
+    match res_result {
+        Ok(res) => {
+            redis_repo
+                .set(&github_repositories_key, res.clone(), None)
+                .await?;
 
-    return Ok((StatusCode::OK, Json(res)).into_response());
+            return Ok((StatusCode::OK, Json(res)).into_response());
+        }
+        Err(err) => match err {
+            RustGoodFirstIssuesError::GithubRateLimitError(_, err_payload) => {
+                let rate_limit_key = GithubRepositoriesRateLimitKeyGenerator { params: &params };
+
+                redis_repo
+                    .set(
+                        &rate_limit_key,
+                        err_payload,
+                        Some(err_payload.get_expiration_time()),
+                    )
+                    .await?;
+
+                Err(err)
+            }
+            _ => Err(err),
+        },
+    }
 }
 
 #[tracing::instrument(name = "Get Github repository good first issues", skip(state))]
@@ -68,9 +91,34 @@ pub async fn get_github_repository_good_first_issues(
     }
 
     let http_repo = GithubGoodFirstIssuesHttpRepository::new(state.github_settings.clone())?;
-    let res = http_repo.get(&path_params, &params).await?;
+    let res_result = http_repo.get(&path_params, &params).await;
 
-    redis_repo.set(&good_first_issues_key, res.clone()).await?;
+    match res_result {
+        Ok(res) => {
+            redis_repo
+                .set(&good_first_issues_key, res.clone(), None)
+                .await?;
 
-    return Ok((StatusCode::OK, Json(res)).into_response());
+            return Ok((StatusCode::OK, Json(res)).into_response());
+        }
+        Err(err) => match err {
+            RustGoodFirstIssuesError::GithubRateLimitError(_, err_payload) => {
+                let rate_limit_key = GithubGoodFirstIssuesRateLimitKeyGenerator {
+                    params: &params,
+                    path_params: &path_params,
+                };
+
+                redis_repo
+                    .set(
+                        &rate_limit_key,
+                        err_payload,
+                        Some(err_payload.get_expiration_time()),
+                    )
+                    .await?;
+
+                Err(err)
+            }
+            _ => Err(err),
+        },
+    }
 }

@@ -13,6 +13,7 @@ use redis::{AsyncCommands, JsonAsyncCommands};
 
 const DEFAULT_PER_PAGE: u32 = 10;
 const DEFAULT_PAGE: u32 = 1;
+// Expiration time is represented in seconds
 const REDIS_EXPIRATION_TIME: i64 = 600;
 
 trait RedisKeyGenerator {
@@ -27,7 +28,22 @@ pub struct GithubRepositoriesKeyGenerator<'a> {
 impl<'a> RedisKeyGenerator for GithubRepositoriesKeyGenerator<'a> {
     fn generate_key(&self) -> String {
         format!(
-            "github_repositories:rust:per_page={}&page={}",
+            "github:repositories:rust:per_page={}&page={}",
+            self.params.per_page.unwrap_or(DEFAULT_PER_PAGE),
+            self.params.page.unwrap_or(DEFAULT_PAGE)
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct GithubRepositoriesRateLimitKeyGenerator<'a> {
+    pub params: &'a GetGithubRepositoriesParams,
+}
+
+impl<'a> RedisKeyGenerator for GithubRepositoriesRateLimitKeyGenerator<'a> {
+    fn generate_key(&self) -> String {
+        format!(
+            "github:repositories:rate_limit:per_page={}&page={}",
             self.params.per_page.unwrap_or(DEFAULT_PER_PAGE),
             self.params.page.unwrap_or(DEFAULT_PAGE)
         )
@@ -43,7 +59,25 @@ pub struct GithubGoodFirstIssuesKeyGenerator<'a> {
 impl<'a> RedisKeyGenerator for GithubGoodFirstIssuesKeyGenerator<'a> {
     fn generate_key(&self) -> String {
         format!(
-            "github_issues:rust:per_page={}&page={}&owner={}&repository_name={}&labels=good_first_issue",
+            "github:issues:rust:per_page={}&page={}&owner={}&repository_name={}&labels=good_first_issue",
+            self.params.per_page.unwrap_or(DEFAULT_PER_PAGE),
+            self.params.page.unwrap_or(DEFAULT_PAGE),
+            self.params.owner,
+            self.path_params.repo
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct GithubGoodFirstIssuesRateLimitKeyGenerator<'a> {
+    pub path_params: &'a GetGithubRepositoryGoodFirstIssuesPathParams,
+    pub params: &'a GetGithubRepositoryGoodFirstIssuesParams,
+}
+
+impl<'a> RedisKeyGenerator for GithubGoodFirstIssuesRateLimitKeyGenerator<'a> {
+    fn generate_key(&self) -> String {
+        format!(
+            "github:issues:rate_limig:per_page={}&page={}&owner={}&repository_name={}&labels=good_first_issue",
             self.params.per_page.unwrap_or(DEFAULT_PER_PAGE),
             self.params.page.unwrap_or(DEFAULT_PAGE),
             self.params.owner,
@@ -72,6 +106,7 @@ impl<'a> GithubRedisRepository<'a> {
         &mut self,
         key_generator: &K,
         value: V,
+        expiration_time: Option<i64>,
     ) -> Result<(), RustGoodFirstIssuesError>
     where
         K: Debug + RedisKeyGenerator,
@@ -87,7 +122,7 @@ impl<'a> GithubRedisRepository<'a> {
 
         self.redis_client
             .conn
-            .expire(&key, REDIS_EXPIRATION_TIME)
+            .expire(&key, expiration_time.unwrap_or(REDIS_EXPIRATION_TIME))
             .await
             .map_err(RustGoodFirstIssuesError::RedisError)?;
 
