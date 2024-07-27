@@ -11,18 +11,16 @@ use std::sync::Arc;
 
 use crate::{errors::RustGoodFirstIssuesError, state::AppState};
 
-use super::{
-    extractors::ExtractRedisKeyGenerator, models::RedisKeyGenerator, repositories::RedisRepository,
-};
+use super::{extractors::RedisKeyGeneratorExtractor, repositories::RedisRepository};
 
 const REDIS_EXPIRATION_TIME: i64 = 600;
 
 pub async fn with_redis_cache<
-    K: RedisKeyGenerator,
+    K: RedisKeyGeneratorExtractor<Arc<AppState>>,
     R: serde::Serialize + serde::de::DeserializeOwned + redis::FromRedisValue + Debug + Send + Sync,
 >(
     State(state): State<Arc<AppState>>,
-    ExtractRedisKeyGenerator(redis_key_generator): ExtractRedisKeyGenerator<K>,
+    redis_key_generator: K,
     request: Request,
     next: Next,
 ) -> Result<Response, RustGoodFirstIssuesError> {
