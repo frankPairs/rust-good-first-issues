@@ -9,10 +9,12 @@ use std::error::Error;
 #[derive(Debug)]
 pub enum RustGoodFirstIssuesError {
     ReqwestError(reqwest::Error),
+    BadRequest(String),
     GithubAPIError(StatusCode, String),
     GithubRateLimitError(String, RateLimitErrorPayload),
     ParseUrlError(url::ParseError),
     RedisError(redis::RedisError),
+    SerdeJsonError(serde_json::Error),
     RedisConnectionError(bb8::RunError<redis::RedisError>),
 }
 
@@ -41,6 +43,12 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             RustGoodFirstIssuesError::RedisConnectionError(err) => {
                 write!(f, "Redis connection error: {}", err)
             }
+            RustGoodFirstIssuesError::BadRequest(err) => {
+                write!(f, "Bad request: {}", err)
+            }
+            RustGoodFirstIssuesError::SerdeJsonError(err) => {
+                write!(f, "Serde JSON conversion error: {}", err)
+            }
         }
     }
 }
@@ -57,6 +65,9 @@ impl IntoResponse for RustGoodFirstIssuesError {
             }
             RustGoodFirstIssuesError::GithubRateLimitError(_, _) => {
                 (StatusCode::TOO_MANY_REQUESTS, err_message).into_response()
+            }
+            RustGoodFirstIssuesError::BadRequest(_) => {
+                (StatusCode::BAD_REQUEST, err_message).into_response()
             }
             RustGoodFirstIssuesError::ReqwestError(err) => (
                 err.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),

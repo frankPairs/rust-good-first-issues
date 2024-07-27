@@ -1,6 +1,7 @@
 mod config;
 mod errors;
 mod github;
+mod redis_utils;
 mod state;
 mod telemetry;
 
@@ -40,7 +41,7 @@ async fn main() -> Result<(), Error> {
 
     let app = Router::new()
         .layer(CorsLayer::new().allow_origin(Any))
-        .nest("/github", GithubRepositoryRouter::build())
+        .nest("/github", GithubRepositoryRouter::build(state.clone()))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
