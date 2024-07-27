@@ -1,4 +1,5 @@
 use axum::{
+    extract::rejection::{PathRejection, QueryRejection},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -16,6 +17,8 @@ pub enum RustGoodFirstIssuesError {
     RedisError(redis::RedisError),
     SerdeJsonError(serde_json::Error),
     RedisConnectionError(bb8::RunError<redis::RedisError>),
+    QueryExtractorError(QueryRejection),
+    PathExtractorError(PathRejection),
 }
 
 impl std::fmt::Display for RustGoodFirstIssuesError {
@@ -49,6 +52,12 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             RustGoodFirstIssuesError::SerdeJsonError(err) => {
                 write!(f, "Serde JSON conversion error: {}", err)
             }
+            RustGoodFirstIssuesError::QueryExtractorError(err) => {
+                write!(f, "Query extractor error: {}", err)
+            }
+            RustGoodFirstIssuesError::PathExtractorError(err) => {
+                write!(f, "Path extractor error: {}", err)
+            }
         }
     }
 }
@@ -66,14 +75,16 @@ impl IntoResponse for RustGoodFirstIssuesError {
             RustGoodFirstIssuesError::GithubRateLimitError(_, _) => {
                 (StatusCode::TOO_MANY_REQUESTS, err_message).into_response()
             }
-            RustGoodFirstIssuesError::BadRequest(_) => {
-                (StatusCode::BAD_REQUEST, err_message).into_response()
-            }
             RustGoodFirstIssuesError::ReqwestError(err) => (
                 err.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 err_message,
             )
                 .into_response(),
+            RustGoodFirstIssuesError::QueryExtractorError(_)
+            | RustGoodFirstIssuesError::PathExtractorError(_)
+            | RustGoodFirstIssuesError::BadRequest(_) => {
+                (StatusCode::BAD_REQUEST, err_message).into_response()
+            }
             _ => (StatusCode::INTERNAL_SERVER_ERROR, err_message).into_response(),
         }
     }

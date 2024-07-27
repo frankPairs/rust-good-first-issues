@@ -6,10 +6,10 @@ use axum::{handler::Handler, middleware, routing, Router};
 use std::sync::Arc;
 
 use super::{
-    extractors::GithubGoodFirstIssuesKeyGenerator,
+    extractors::GithubGoodFirstIssuesKeyExtractor,
     models::GetGithubRepositoryGoodFirstIssuesResponse,
 };
-use super::{extractors::GithubRepositoriesKeyGenerator, models::GetGithubRepositoriesResponse};
+use super::{extractors::GithubRepositoriesKeyExtractor, models::GetGithubRepositoriesResponse};
 use crate::redis_utils::middlewares::with_redis_cache;
 
 pub struct GithubRepositoryRouter;
@@ -22,7 +22,7 @@ impl GithubRepositoryRouter {
                 routing::get(get_github_repositories).layer(middleware::from_fn_with_state(
                     state.clone(),
                     with_redis_cache::<
-                        GithubRepositoriesKeyGenerator,
+                        GithubRepositoriesKeyExtractor,
                         GetGithubRepositoriesResponse,
                     >,
                 )),
@@ -33,7 +33,7 @@ impl GithubRepositoryRouter {
                     middleware::from_fn_with_state(
                         state.clone(),
                         with_redis_cache::<
-                            GithubGoodFirstIssuesKeyGenerator,
+                            GithubGoodFirstIssuesKeyExtractor,
                             GetGithubRepositoryGoodFirstIssuesResponse,
                         >,
                     ))

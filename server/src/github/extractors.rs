@@ -18,11 +18,11 @@ const DEFAULT_PER_PAGE: u32 = 10;
 const DEFAULT_PAGE: u32 = 1;
 
 #[derive(Debug)]
-pub struct GithubRepositoriesKeyGenerator {
+pub struct GithubRepositoriesKeyExtractor {
     pub params: GetGithubRepositoriesParams,
 }
 
-impl<S> RedisKeyGeneratorExtractor<S> for GithubRepositoriesKeyGenerator
+impl<S> RedisKeyGeneratorExtractor<S> for GithubRepositoriesKeyExtractor
 where
     S: Send + Sync,
 {
@@ -35,7 +35,7 @@ where
     }
 }
 #[async_trait]
-impl<S> FromRequestParts<S> for GithubRepositoriesKeyGenerator
+impl<S> FromRequestParts<S> for GithubRepositoriesKeyExtractor
 where
     S: Send + Sync,
 {
@@ -45,24 +45,24 @@ where
         let extracted_params = parts
             .extract::<Query<GetGithubRepositoriesParams>>()
             .await
-            .unwrap();
+            .map_err(RustGoodFirstIssuesError::QueryExtractorError)?;
 
         let params = GetGithubRepositoriesParams {
             page: extracted_params.page,
             per_page: extracted_params.per_page,
         };
 
-        Ok(GithubRepositoriesKeyGenerator { params })
+        Ok(GithubRepositoriesKeyExtractor { params })
     }
 }
 
 #[derive(Debug)]
-pub struct GithubGoodFirstIssuesKeyGenerator {
+pub struct GithubGoodFirstIssuesKeyExtractor {
     pub path_params: GetGithubRepositoryGoodFirstIssuesPathParams,
     pub params: GetGithubRepositoryGoodFirstIssuesParams,
 }
 
-impl<S> RedisKeyGeneratorExtractor<S> for GithubGoodFirstIssuesKeyGenerator
+impl<S> RedisKeyGeneratorExtractor<S> for GithubGoodFirstIssuesKeyExtractor
 where
     S: Send + Sync,
 {
@@ -78,7 +78,7 @@ where
 }
 
 #[async_trait]
-impl<S> FromRequestParts<S> for GithubGoodFirstIssuesKeyGenerator
+impl<S> FromRequestParts<S> for GithubGoodFirstIssuesKeyExtractor
 where
     S: Send + Sync,
 {
@@ -88,12 +88,12 @@ where
         let extracted_params = parts
             .extract::<Query<GetGithubRepositoryGoodFirstIssuesParams>>()
             .await
-            .unwrap();
+            .map_err(RustGoodFirstIssuesError::QueryExtractorError)?;
 
         let extracted_path_params = parts
             .extract::<Path<GetGithubRepositoryGoodFirstIssuesPathParams>>()
             .await
-            .unwrap();
+            .map_err(RustGoodFirstIssuesError::PathExtractorError)?;
 
         let params = GetGithubRepositoryGoodFirstIssuesParams {
             page: extracted_params.page,
@@ -104,7 +104,7 @@ where
             repo: extracted_path_params.repo.clone(),
         };
 
-        Ok(GithubGoodFirstIssuesKeyGenerator {
+        Ok(GithubGoodFirstIssuesKeyExtractor {
             params,
             path_params,
         })
