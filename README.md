@@ -1,3 +1,9 @@
 # Rust good first issues project
 
-If you want to contribute on some of Rust libraries, but you have never try yete this is a project for you! I am developing a web site where you can find Rust projects with "Good First issues", so you can start to contribute on Rust awesome ecosystem!
+Why this project? To have fun and learn Rust!!
+
+The idea is to build a website where everyone can find Github repositories build with Rust. The list of repositories will be ordered by the ones with more issues with the tag "help-wanted". Users also will be able to see the details of each repository and all the issues with the label "good-first-issue". 
+
+The main goal of this project is to build a place where Rust beginners can use it as a source to do their first contribution to the Rust ecosystem.
+
+Wish me luck!
