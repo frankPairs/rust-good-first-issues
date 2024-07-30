@@ -10,13 +10,9 @@ use std::error::Error;
 #[derive(Debug)]
 pub enum RustGoodFirstIssuesError {
     ReqwestError(reqwest::Error),
-    BadRequest(String),
     GithubAPIError(StatusCode, String),
     GithubRateLimitError(String, RateLimitErrorPayload),
     ParseUrlError(url::ParseError),
-    RedisError(redis::RedisError),
-    SerdeJsonError(serde_json::Error),
-    RedisConnectionError(bb8::RunError<redis::RedisError>),
     QueryExtractorError(QueryRejection),
     PathExtractorError(PathRejection),
 }
@@ -39,18 +35,6 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             }
             RustGoodFirstIssuesError::GithubRateLimitError(message, _) => {
                 write!(f, "Github rate limit error: {}", message)
-            }
-            RustGoodFirstIssuesError::RedisError(err) => {
-                write!(f, "Redis error: {}", err)
-            }
-            RustGoodFirstIssuesError::RedisConnectionError(err) => {
-                write!(f, "Redis connection error: {}", err)
-            }
-            RustGoodFirstIssuesError::BadRequest(err) => {
-                write!(f, "Bad request: {}", err)
-            }
-            RustGoodFirstIssuesError::SerdeJsonError(err) => {
-                write!(f, "Serde JSON conversion error: {}", err)
             }
             RustGoodFirstIssuesError::QueryExtractorError(err) => {
                 write!(f, "Query extractor error: {}", err)
@@ -81,8 +65,7 @@ impl IntoResponse for RustGoodFirstIssuesError {
             )
                 .into_response(),
             RustGoodFirstIssuesError::QueryExtractorError(_)
-            | RustGoodFirstIssuesError::PathExtractorError(_)
-            | RustGoodFirstIssuesError::BadRequest(_) => {
+            | RustGoodFirstIssuesError::PathExtractorError(_) => {
                 (StatusCode::BAD_REQUEST, err_message).into_response()
             }
             _ => (StatusCode::INTERNAL_SERVER_ERROR, err_message).into_response(),

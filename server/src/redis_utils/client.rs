@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
 
-use crate::errors::RustGoodFirstIssuesError;
+use super::errors::RedisUtilsError;
 
 #[derive(Debug)]
 pub struct RedisClient<'a> {
@@ -13,11 +13,11 @@ pub struct RedisClient<'a> {
 impl<'a> RedisClient<'a> {
     pub async fn new(
         redis_pool: &'a Pool<RedisConnectionManager>,
-    ) -> Result<Self, RustGoodFirstIssuesError> {
+    ) -> Result<Self, RedisUtilsError> {
         let conn = redis_pool
             .get()
             .await
-            .map_err(RustGoodFirstIssuesError::RedisConnectionError)?;
+            .map_err(RedisUtilsError::RedisConnectionError)?;
 
         Ok(Self { conn })
     }
