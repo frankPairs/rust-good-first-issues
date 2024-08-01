@@ -1,78 +1,185 @@
 use axum::{
-    body::{Body, Bytes},
-    extract::{Json, Request, State},
-    http::StatusCode,
-    middleware::Next,
+    body::Body,
+    extract::Request,
     response::{IntoResponse, Response},
+    Json,
 };
+use bb8::Pool;
+use bb8_redis::RedisConnectionManager;
+use futures_util::future::BoxFuture;
 use http_body_util::BodyExt;
-use std::fmt::Debug;
-use std::sync::Arc;
-
-use crate::state::AppState;
-
-use super::{
-    errors::RedisUtilsError, extractors::RedisKeyGeneratorExtractor, repositories::RedisRepository,
+use itertools::{sorted, Itertools};
+use reqwest::StatusCode;
+use std::{
+    fmt::Debug,
+    marker::PhantomData,
+    task::{Context, Poll},
 };
+use tower::{Layer, Service};
+
+use super::repositories::RedisRepository;
 
 const REDIS_EXPIRATION_TIME: i64 = 600;
+const REDIS_KEY_DELIMITER: &str = ":";
 
-pub async fn with_redis_cache<
-    K: RedisKeyGeneratorExtractor<Arc<AppState>>,
-    R: serde::Serialize + serde::de::DeserializeOwned + redis::FromRedisValue + Debug + Send + Sync,
->(
-    State(state): State<Arc<AppState>>,
-    redis_key_generator: K,
-    request: Request,
-    next: Next,
-) -> Result<Response, RedisUtilsError> {
-    let resource_key = redis_key_generator.generate_key();
-
-    let mut redis_repo = RedisRepository::new(&state.redis_pool).await?;
-
-    if redis_repo.contains(resource_key.clone()).await? {
-        let res: R = redis_repo.get(resource_key.clone()).await?;
-
-        return Ok((StatusCode::OK, Json(res)).into_response());
-    }
-
-    let res = next.run(request).await;
-
-    let (parts, body) = res.into_parts();
-
-    let bytes = save_response_body_into_redis::<R>(body, &mut redis_repo, resource_key).await?;
-
-    let res = Response::from_parts(parts, Body::from(bytes));
-
-    Ok(res)
+#[derive(Clone)]
+pub struct RedisCacheLayer<ResponseType> {
+    redis_pool: Pool<RedisConnectionManager>,
+    phantom_data: PhantomData<ResponseType>,
 }
 
-async fn save_response_body_into_redis<'a, R>(
-    body: Body,
-    redis_repo: &mut RedisRepository<'a>,
-    resource_key: String,
-) -> Result<Bytes, RedisUtilsError>
+impl<ResponseType> RedisCacheLayer<ResponseType>
 where
-    R: serde::Serialize + serde::de::DeserializeOwned + redis::FromRedisValue + Debug + Send + Sync,
+    ResponseType: serde::de::DeserializeOwned
+        + redis::FromRedisValue
+        + serde::Serialize
+        + Debug
+        + Send
+        + Sync,
 {
-    let bytes = match body.collect().await {
-        Ok(collected) => collected.to_bytes(),
-        Err(err) => {
-            return Err(RedisUtilsError::BadRequest(err.to_string()));
+    pub fn new(redis_pool: Pool<RedisConnectionManager>) -> RedisCacheLayer<ResponseType> {
+        RedisCacheLayer {
+            redis_pool,
+            phantom_data: PhantomData,
         }
-    };
-    let res_json_str = match String::from_utf8(bytes.to_vec()) {
-        Ok(json_str) => json_str,
-        Err(err) => {
-            return Err(RedisUtilsError::BadRequest(err.to_string()));
+    }
+}
+
+impl<S, ResponseType> Layer<S> for RedisCacheLayer<ResponseType>
+where
+    ResponseType: serde::de::DeserializeOwned
+        + redis::FromRedisValue
+        + serde::Serialize
+        + Debug
+        + Send
+        + Sync,
+{
+    type Service = RedisCacheMiddleware<S, ResponseType>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        RedisCacheMiddleware {
+            inner,
+            redis_pool: self.redis_pool.clone(),
+            phantom_data: PhantomData,
         }
-    };
-    let res_body: R =
-        serde_json::from_str(&res_json_str).map_err(RedisUtilsError::SerdeJsonError)?;
+    }
+}
 
-    redis_repo
-        .set(resource_key, res_body, Some(REDIS_EXPIRATION_TIME))
-        .await?;
+#[derive(Clone)]
+pub struct RedisCacheMiddleware<S, ResponseType> {
+    inner: S,
+    redis_pool: Pool<RedisConnectionManager>,
+    phantom_data: PhantomData<ResponseType>,
+}
 
-    Ok(bytes)
+impl<S, ResponseType> Service<Request> for RedisCacheMiddleware<S, ResponseType>
+where
+    S: Service<Request, Response = Response> + Send + 'static,
+    S::Future: Send + 'static,
+    ResponseType: serde::de::DeserializeOwned
+        + redis::FromRedisValue
+        + serde::Serialize
+        + Debug
+        + Send
+        + Sync,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: Request) -> Self::Future {
+        let redis_pool = self.redis_pool.clone();
+        let url = request.uri();
+        let formatted_path = url.path().to_string().replace("/", REDIS_KEY_DELIMITER);
+        let query_params = match url.query() {
+            Some(query) => query,
+            None => "",
+        };
+        let sorted_params = sorted(query_params.split("&")).join(REDIS_KEY_DELIMITER);
+
+        let redis_key = format!("{}{}", formatted_path, sorted_params).replacen(":", "", 1);
+
+        let future = self.inner.call(request);
+
+        Box::pin(async move {
+            let mut redis_repo = match RedisRepository::new(&redis_pool).await {
+                Ok(repo) => repo,
+                Err(err) => {
+                    tracing::error!("{}", err);
+
+                    return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
+                }
+            };
+
+            let contains_resource_key = match redis_repo.contains(redis_key.clone()).await {
+                Ok(value) => value,
+                Err(err) => {
+                    tracing::error!("{}", err);
+
+                    return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
+                }
+            };
+
+            if contains_resource_key {
+                let res: ResponseType = match redis_repo.get(redis_key.clone()).await {
+                    Ok(json) => json,
+                    Err(err) => {
+                        tracing::error!("{}", err);
+
+                        return Ok(
+                            (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()
+                        );
+                    }
+                };
+
+                return Ok((StatusCode::OK, Json(res)).into_response());
+            }
+
+            let res: Response = future.await?;
+
+            let (parts, body) = res.into_parts();
+
+            let bytes = match body.collect().await {
+                Ok(collected) => collected.to_bytes(),
+                Err(err) => {
+                    tracing::error!("{}", err);
+
+                    return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
+                }
+            };
+            let res_json_str = match String::from_utf8(bytes.to_vec()) {
+                Ok(json_str) => json_str,
+                Err(err) => {
+                    tracing::error!("{}", err);
+
+                    return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
+                }
+            };
+            let res_body: ResponseType = match serde_json::from_str(&res_json_str) {
+                Ok(body) => body,
+                Err(err) => {
+                    tracing::error!("{}", err);
+
+                    return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
+                }
+            };
+
+            if let Err(err) = redis_repo
+                .set(redis_key, res_body, Some(REDIS_EXPIRATION_TIME))
+                .await
+            {
+                tracing::error!("{}", err);
+
+                return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
+            };
+
+            let res = Response::from_parts(parts, Body::from(bytes));
+
+            Ok(res)
+        })
+    }
 }
