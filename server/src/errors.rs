@@ -1,5 +1,4 @@
 use axum::{
-    extract::rejection::{PathRejection, QueryRejection},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -13,17 +12,15 @@ pub enum RustGoodFirstIssuesError {
     GithubAPIError(StatusCode, String),
     GithubRateLimitError(String, RateLimitErrorPayload),
     ParseUrlError(url::ParseError),
-    QueryExtractorError(QueryRejection),
-    PathExtractorError(PathRejection),
 }
 
 impl std::fmt::Display for RustGoodFirstIssuesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RustGoodFirstIssuesError::ReqwestError(err) => {
-                tracing::error!("Error req url = {:?}", err.url());
-                tracing::error!("Error status = {:?}", err.status());
-                tracing::error!("Error source = {:?}", err.source());
+                tracing::error!("ReqwestError url = {:?}", err.url());
+                tracing::error!("ReqwestError status = {:?}", err.status());
+                tracing::error!("ReqwestError source = {:?}", err.source());
 
                 write!(f, "External API request error: {}", err)
             }
@@ -35,12 +32,6 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             }
             RustGoodFirstIssuesError::GithubRateLimitError(message, _) => {
                 write!(f, "Github rate limit error: {}", message)
-            }
-            RustGoodFirstIssuesError::QueryExtractorError(err) => {
-                write!(f, "Query extractor error: {}", err)
-            }
-            RustGoodFirstIssuesError::PathExtractorError(err) => {
-                write!(f, "Path extractor error: {}", err)
             }
         }
     }
@@ -64,10 +55,6 @@ impl IntoResponse for RustGoodFirstIssuesError {
                 err_message,
             )
                 .into_response(),
-            RustGoodFirstIssuesError::QueryExtractorError(_)
-            | RustGoodFirstIssuesError::PathExtractorError(_) => {
-                (StatusCode::BAD_REQUEST, err_message).into_response()
-            }
             _ => (StatusCode::INTERNAL_SERVER_ERROR, err_message).into_response(),
         }
     }
