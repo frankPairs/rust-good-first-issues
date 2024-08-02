@@ -10,7 +10,8 @@ use reqwest::StatusCode;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-use crate::{errors::GithubRateLimitError, redis_utils::repositories::RedisRepository};
+use super::errors::GithubRateLimitError;
+use crate::redis_utils::repositories::RedisRepository;
 
 const REDIS_KEY_DELIMITER: &str = ":";
 

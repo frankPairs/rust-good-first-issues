@@ -22,7 +22,10 @@ impl<'a> RedisRepository<'a> {
         Ok(Self { conn })
     }
 
-    #[tracing::instrument(name = "Stores data on Redis database", skip(self))]
+    #[tracing::instrument(
+        name = "Stores data on Redis database",
+        skip(self, value, expiration_time)
+    )]
     pub async fn set<V>(
         &mut self,
         key: String,
