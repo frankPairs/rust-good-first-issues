@@ -60,14 +60,8 @@ where
         let redis_pool = self.redis_pool.clone();
         let url = request.uri();
         let formatted_path = url.path().to_string().replace("/", REDIS_KEY_DELIMITER);
-        let query_params = match url.query() {
-            Some(query) => query,
-            None => "",
-        };
-        let sorted_params = sorted(query_params.split("&")).join(REDIS_KEY_DELIMITER);
 
-        let redis_key =
-            format!("errors:rate_limit:{}{}", formatted_path, sorted_params).replacen(":", "", 1);
+        let redis_key = format!("errors:rate_limit:{}", formatted_path).replacen(":", "", 1);
 
         let future = self.inner.call(request);
 

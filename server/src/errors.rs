@@ -7,7 +7,6 @@ use std::{collections::HashMap, error::Error};
 #[derive(Debug)]
 pub enum RustGoodFirstIssuesError {
     ReqwestError(reqwest::Error),
-    GithubSerializeResponseError(serde_json::Error),
     GithubAPIError(StatusCode, HeaderMap<HeaderValue>, String),
     ParseUrlError(url::ParseError),
 }
@@ -27,9 +26,6 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             }
             RustGoodFirstIssuesError::GithubAPIError(status_code, _, message) => {
                 write!(f, "Github API error {}: {}", status_code, message)
-            }
-            RustGoodFirstIssuesError::GithubSerializeResponseError(err) => {
-                write!(f, "Github response serialization error: {}", err)
             }
         }
     }
