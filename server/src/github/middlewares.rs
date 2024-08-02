@@ -5,7 +5,6 @@ use axum::{
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
 use futures_util::future::BoxFuture;
-use itertools::{sorted, Itertools};
 use reqwest::StatusCode;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
