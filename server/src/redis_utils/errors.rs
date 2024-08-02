@@ -1,8 +1,3 @@
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-
 #[derive(Debug)]
 pub enum RedisUtilsError {
     RedisError(redis::RedisError),
@@ -13,22 +8,20 @@ impl std::fmt::Display for RedisUtilsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RedisUtilsError::RedisError(err) => {
-                write!(f, "Redis error: {}", err)
+                let error_msg = format!("Redis error: {}", err);
+
+                tracing::error!(error_msg);
+
+                write!(f, "{}", error_msg)
             }
 
             RedisUtilsError::RedisConnectionError(err) => {
-                write!(f, "Redis connection error: {}", err)
+                let error_msg = format!("Redis connection error: {}", err);
+
+                tracing::error!(error_msg);
+
+                write!(f, "{}", error_msg)
             }
         }
-    }
-}
-
-impl IntoResponse for RedisUtilsError {
-    fn into_response(self) -> Response {
-        let err_message = self.to_string();
-
-        tracing::error!("{}", err_message);
-
-        (StatusCode::INTERNAL_SERVER_ERROR, err_message).into_response()
     }
 }

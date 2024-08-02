@@ -19,13 +19,18 @@ use tower::{Layer, Service};
 
 use super::repositories::RedisRepository;
 
-const REDIS_EXPIRATION_TIME: i64 = 600;
 const REDIS_KEY_DELIMITER: &str = ":";
 
 #[derive(Clone)]
 pub struct RedisCacheLayer<ResponseType> {
     redis_pool: Pool<RedisConnectionManager>,
+    options: Option<RedisCacheOptions>,
     phantom_data: PhantomData<ResponseType>,
+}
+
+#[derive(Clone)]
+pub struct RedisCacheOptions {
+    pub expiration_time: Option<i64>,
 }
 
 impl<ResponseType> RedisCacheLayer<ResponseType>
@@ -37,9 +42,13 @@ where
         + Send
         + Sync,
 {
-    pub fn new(redis_pool: Pool<RedisConnectionManager>) -> RedisCacheLayer<ResponseType> {
+    pub fn new(
+        redis_pool: Pool<RedisConnectionManager>,
+        options: Option<RedisCacheOptions>,
+    ) -> RedisCacheLayer<ResponseType> {
         RedisCacheLayer {
             redis_pool,
+            options,
             phantom_data: PhantomData,
         }
     }
@@ -60,6 +69,7 @@ where
         RedisCacheMiddleware {
             inner,
             redis_pool: self.redis_pool.clone(),
+            options: self.options.clone(),
             phantom_data: PhantomData,
         }
     }
@@ -69,6 +79,7 @@ where
 pub struct RedisCacheMiddleware<S, ResponseType> {
     inner: S,
     redis_pool: Pool<RedisConnectionManager>,
+    options: Option<RedisCacheOptions>,
     phantom_data: PhantomData<ResponseType>,
 }
 
@@ -102,6 +113,7 @@ where
         let sorted_params = sorted(query_params.split("&")).join(REDIS_KEY_DELIMITER);
 
         let redis_key = format!("{}{}", formatted_path, sorted_params).replacen(":", "", 1);
+        let redis_options = self.options.clone();
 
         let future = self.inner.call(request);
 
@@ -109,8 +121,6 @@ where
             let mut redis_repo = match RedisRepository::new(&redis_pool).await {
                 Ok(repo) => repo,
                 Err(err) => {
-                    tracing::error!("{}", err);
-
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
                 }
             };
@@ -118,8 +128,6 @@ where
             let contains_resource_key = match redis_repo.contains(redis_key.clone()).await {
                 Ok(value) => value,
                 Err(err) => {
-                    tracing::error!("{}", err);
-
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
                 }
             };
@@ -168,10 +176,12 @@ where
                 }
             };
 
-            if let Err(err) = redis_repo
-                .set(redis_key, res_body, Some(REDIS_EXPIRATION_TIME))
-                .await
-            {
+            let expiration_time = match redis_options {
+                Some(options) => options.expiration_time,
+                None => None,
+            };
+
+            if let Err(err) = redis_repo.set(redis_key, res_body, expiration_time).await {
                 tracing::error!("{}", err);
 
                 return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
