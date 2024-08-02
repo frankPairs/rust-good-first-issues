@@ -1,6 +1,6 @@
 use reqwest::{header, Client, Url};
 
-use crate::errors::{RateLimitErrorPayload, RustGoodFirstIssuesError};
+use crate::errors::RustGoodFirstIssuesError;
 
 const GITHUB_API_BASE_URL: &str = "https://api.github.com";
 const GITHUB_API_VERSION: &str = "2022-11-28";
@@ -43,25 +43,17 @@ impl GithubHttpClient {
         Url::parse(GITHUB_API_BASE_URL).map_err(RustGoodFirstIssuesError::ParseUrlError)
     }
 
-    pub async fn try_into_error(&self, response: reqwest::Response) -> RustGoodFirstIssuesError {
+    pub async fn into_error(&self, response: reqwest::Response) -> RustGoodFirstIssuesError {
         let status_code = response.status();
         let headers = response.headers().clone();
         let result: Result<GithubApiErrorPayload, reqwest::Error> = response.json().await;
 
         match result {
-            Ok(error_payload) => {
-                let err_message = error_payload.message;
-                let rate_limit_err_payload = RateLimitErrorPayload::from_response_headers(&headers);
-
-                if !rate_limit_err_payload.is_empty() {
-                    return RustGoodFirstIssuesError::GithubRateLimitError(
-                        err_message,
-                        rate_limit_err_payload,
-                    );
-                }
-
-                RustGoodFirstIssuesError::GithubAPIError(status_code, err_message)
-            }
+            Ok(error_payload) => RustGoodFirstIssuesError::GithubAPIError(
+                status_code,
+                headers,
+                error_payload.message,
+            ),
             Err(err) => RustGoodFirstIssuesError::ReqwestError(err),
         }
     }

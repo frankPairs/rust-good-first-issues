@@ -55,7 +55,7 @@ impl GithubRepositoriesHttpRepository {
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
         if !response.status().is_success() {
-            return Err(self.http_client.try_into_error(response).await);
+            return Err(self.http_client.into_error(response).await);
         }
 
         let json: SearchGithubRepositoriesResponseAPI = response
@@ -136,7 +136,7 @@ impl GithubGoodFirstIssuesHttpRepository {
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
         if !response.status().is_success() {
-            return Err(self.http_client.try_into_error(response).await);
+            return Err(self.http_client.into_error(response).await);
         }
 
         let json: Vec<GithubIssueAPI> = response

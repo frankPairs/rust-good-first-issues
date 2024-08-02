@@ -1,3 +1,3 @@
-mod errors;
+pub mod errors;
 pub mod middlewares;
-mod repositories;
+pub mod repositories;

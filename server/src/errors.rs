@@ -1,16 +1,15 @@
 use axum::{
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 #[derive(Debug)]
 pub enum RustGoodFirstIssuesError {
     ReqwestError(reqwest::Error),
-    GithubAPIError(StatusCode, String),
-    GithubRateLimitError(String, RateLimitErrorPayload),
+    GithubAPIError(StatusCode, HeaderMap<HeaderValue>, String),
     ParseUrlError(url::ParseError),
 }
 
@@ -27,11 +26,8 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             RustGoodFirstIssuesError::ParseUrlError(err) => {
                 write!(f, "Parse url error: {}", err)
             }
-            RustGoodFirstIssuesError::GithubAPIError(status_code, message) => {
+            RustGoodFirstIssuesError::GithubAPIError(status_code, _, message) => {
                 write!(f, "Github API error {}: {}", status_code, message)
-            }
-            RustGoodFirstIssuesError::GithubRateLimitError(message, _) => {
-                write!(f, "Github rate limit error: {}", message)
             }
         }
     }
@@ -44,11 +40,26 @@ impl IntoResponse for RustGoodFirstIssuesError {
         tracing::error!("{}", err_message);
 
         match self {
-            RustGoodFirstIssuesError::GithubAPIError(status_code, _) => {
+            RustGoodFirstIssuesError::GithubAPIError(status_code, headers, _) => {
+                let mut rate_limit_headers: HashMap<String, &HeaderValue> = HashMap::new();
+
+                if let Some(value) = headers.get("retry-after") {
+                    rate_limit_headers.insert(String::from("retry-after"), value);
+                }
+
+                if let Some(value) = headers.get("x-ratelimit-remaining") {
+                    rate_limit_headers.insert(String::from("x-ratelimit-remaining"), value);
+                }
+
+                if let Some(value) = headers.get("x-ratelimit-reset") {
+                    rate_limit_headers.insert(String::from("x-ratelimit-reset"), value);
+                }
+
+                if !rate_limit_headers.is_empty() {
+                    return (StatusCode::TOO_MANY_REQUESTS, headers, err_message).into_response();
+                }
+
                 (status_code, err_message).into_response()
-            }
-            RustGoodFirstIssuesError::GithubRateLimitError(_, _) => {
-                (StatusCode::TOO_MANY_REQUESTS, err_message).into_response()
             }
             RustGoodFirstIssuesError::ReqwestError(err) => (
                 err.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
@@ -61,7 +72,7 @@ impl IntoResponse for RustGoodFirstIssuesError {
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
-pub struct RateLimitErrorPayload {
+pub struct GithubRateLimitError {
     // The time in seconds that you should wait before making the next request
     pub retry_after: Option<i64>,
     // The number of requests remaining in the current rate limit window
@@ -70,14 +81,7 @@ pub struct RateLimitErrorPayload {
     pub ratelimit_reset: Option<i64>,
 }
 
-impl RateLimitErrorPayload {
-    // When none of the rate limit headers is presents, there is not any rate limit error
-    pub fn is_empty(&self) -> bool {
-        return self.retry_after.is_none()
-            && self.ratelimit_remaining.is_none()
-            && self.ratelimit_reset.is_none();
-    }
-
+impl GithubRateLimitError {
     // Returns the rate limit expiration time in seconds. If the function returns a value greater than 0,
     // that value should be considered as a limit of time in seconds to do the next request to the Github API
     // It applies the logic describe on the official Github API documentation:
@@ -152,7 +156,7 @@ impl RateLimitErrorPayload {
             };
         }
 
-        RateLimitErrorPayload {
+        GithubRateLimitError {
             ratelimit_remaining,
             ratelimit_reset,
             retry_after,

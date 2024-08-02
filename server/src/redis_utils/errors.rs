@@ -10,15 +10,11 @@ impl std::fmt::Display for RedisUtilsError {
             RedisUtilsError::RedisError(err) => {
                 let error_msg = format!("Redis error: {}", err);
 
-                tracing::error!(error_msg);
-
                 write!(f, "{}", error_msg)
             }
 
             RedisUtilsError::RedisConnectionError(err) => {
                 let error_msg = format!("Redis connection error: {}", err);
-
-                tracing::error!(error_msg);
 
                 write!(f, "{}", error_msg)
             }

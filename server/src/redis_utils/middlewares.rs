@@ -136,8 +136,6 @@ where
                 let res: ResponseType = match redis_repo.get(redis_key.clone()).await {
                     Ok(json) => json,
                     Err(err) => {
-                        tracing::error!("{}", err);
-
                         return Ok(
                             (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()
                         );
@@ -154,24 +152,18 @@ where
             let bytes = match body.collect().await {
                 Ok(collected) => collected.to_bytes(),
                 Err(err) => {
-                    tracing::error!("{}", err);
-
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
                 }
             };
             let res_json_str = match String::from_utf8(bytes.to_vec()) {
                 Ok(json_str) => json_str,
                 Err(err) => {
-                    tracing::error!("{}", err);
-
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
                 }
             };
             let res_body: ResponseType = match serde_json::from_str(&res_json_str) {
                 Ok(body) => body,
                 Err(err) => {
-                    tracing::error!("{}", err);
-
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
                 }
             };
@@ -182,8 +174,6 @@ where
             };
 
             if let Err(err) = redis_repo.set(redis_key, res_body, expiration_time).await {
-                tracing::error!("{}", err);
-
                 return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
             };
 
