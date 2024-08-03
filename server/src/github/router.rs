@@ -3,12 +3,11 @@ use crate::{
     redis_utils::middlewares::RedisCacheOptions,
     state::AppState,
 };
-use axum::{handler::Handler, routing, Extension, Router};
+use axum::{handler::Handler, routing, Router};
 use std::sync::Arc;
-use tower::ServiceBuilder;
 
 use super::{
-    middlewares::GithubRateLimitLayer,
+    middlewares::GithubRateLimitServiceBuilder,
     models::{GetGithubRepositoriesResponse, GetGithubRepositoryGoodFirstIssuesResponse},
 };
 use crate::redis_utils::middlewares::RedisCacheLayer;
@@ -44,10 +43,6 @@ impl GithubRepositoryRouter {
                     )),
                 ),
             )
-            .route_layer(
-                ServiceBuilder::new()
-                    .layer(Extension(state))
-                    .layer(GithubRateLimitLayer::new()),
-            )
+            .route_layer(GithubRateLimitServiceBuilder::new(state))
     }
 }

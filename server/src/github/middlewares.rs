@@ -10,7 +10,10 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-use tower::{Layer, Service};
+use tower::{
+    layer::util::{Identity, Stack},
+    Layer, Service, ServiceBuilder,
+};
 
 use super::errors::GithubRateLimitError;
 use crate::{redis_utils::repositories::RedisRepository, state::AppState};
@@ -31,6 +34,19 @@ impl<'a, S> Layer<S> for GithubRateLimitLayer {
 
     fn layer(&self, inner: S) -> Self::Service {
         GithubRateLimitMiddleware { inner }
+    }
+}
+
+pub struct GithubRateLimitServiceBuilder;
+
+impl GithubRateLimitServiceBuilder {
+    pub fn new(
+        state: Arc<AppState>,
+    ) -> ServiceBuilder<Stack<GithubRateLimitLayer, Stack<Extension<Arc<AppState>>, Identity>>>
+    {
+        ServiceBuilder::new()
+            .layer(Extension(state))
+            .layer(GithubRateLimitLayer::new())
     }
 }
 
