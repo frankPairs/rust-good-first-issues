@@ -1,27 +1,28 @@
 use axum::{
     extract::Request,
     response::{IntoResponse, Response},
+    Extension, RequestPartsExt,
 };
-use bb8::Pool;
-use bb8_redis::RedisConnectionManager;
+
 use futures_util::future::BoxFuture;
 use reqwest::StatusCode;
-use std::task::{Context, Poll};
+use std::{
+    sync::Arc,
+    task::{Context, Poll},
+};
 use tower::{Layer, Service};
 
 use super::errors::GithubRateLimitError;
-use crate::redis_utils::repositories::RedisRepository;
+use crate::{redis_utils::repositories::RedisRepository, state::AppState};
 
 const REDIS_KEY_DELIMITER: &str = ":";
 
 #[derive(Clone)]
-pub struct GithubRateLimitLayer {
-    redis_pool: Pool<RedisConnectionManager>,
-}
+pub struct GithubRateLimitLayer;
 
 impl GithubRateLimitLayer {
-    pub fn new(redis_pool: Pool<RedisConnectionManager>) -> GithubRateLimitLayer {
-        GithubRateLimitLayer { redis_pool }
+    pub fn new() -> GithubRateLimitLayer {
+        GithubRateLimitLayer {}
     }
 }
 
@@ -29,17 +30,13 @@ impl<'a, S> Layer<S> for GithubRateLimitLayer {
     type Service = GithubRateLimitMiddleware<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        GithubRateLimitMiddleware {
-            inner,
-            redis_pool: self.redis_pool.clone(),
-        }
+        GithubRateLimitMiddleware { inner }
     }
 }
 
 #[derive(Clone)]
 pub struct GithubRateLimitMiddleware<S> {
     inner: S,
-    redis_pool: Pool<RedisConnectionManager>,
 }
 
 impl<S> Service<Request> for GithubRateLimitMiddleware<S>
@@ -56,16 +53,24 @@ where
     }
 
     fn call(&mut self, request: Request) -> Self::Future {
-        let redis_pool = self.redis_pool.clone();
         let url = request.uri();
         let formatted_path = url.path().to_string().replace("/", REDIS_KEY_DELIMITER);
-
         let redis_key = format!("errors:rate_limit:{}", formatted_path).replacen(":", "", 1);
+
+        let (mut parts, body) = request.into_parts();
+        let request = Request::from_parts(parts.clone(), body);
 
         let future = self.inner.call(request);
 
         Box::pin(async move {
-            let mut redis_repo = match RedisRepository::new(&redis_pool).await {
+            let Extension(state) = match parts.extract::<Extension<Arc<AppState>>>().await {
+                Ok(state) => state,
+                Err(err) => {
+                    return Ok(err.into_response());
+                }
+            };
+
+            let mut redis_repo = match RedisRepository::new(&state.redis_pool).await {
                 Ok(repo) => repo,
                 Err(err) => {
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());

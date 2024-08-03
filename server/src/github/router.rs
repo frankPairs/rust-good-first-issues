@@ -43,6 +43,6 @@ impl GithubRepositoryRouter {
                     )),
                 ),
             )
-            .route_layer(GithubRateLimitLayer::new(state.redis_pool.clone()))
+            .route_layer(GithubRateLimitLayer::new())
     }
 }
