@@ -1,3 +1,6 @@
+use axum::response::{IntoResponse, Response};
+use reqwest::StatusCode;
+
 #[derive(Debug)]
 pub enum RedisUtilsError {
     RedisError(redis::RedisError),
@@ -19,5 +22,13 @@ impl std::fmt::Display for RedisUtilsError {
                 write!(f, "{}", error_msg)
             }
         }
+    }
+}
+
+impl IntoResponse for RedisUtilsError {
+    fn into_response(self) -> Response {
+        let err_message = self.to_string();
+
+        (StatusCode::INTERNAL_SERVER_ERROR, err_message).into_response()
     }
 }

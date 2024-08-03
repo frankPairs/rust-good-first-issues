@@ -92,7 +92,7 @@ where
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
                 }
             };
-            let contains_rate_limit = match redis_repo.contains(redis_key.clone()).await {
+            let contains_rate_limit = match redis_repo.contains(&redis_key).await {
                 Ok(value) => value,
                 Err(err) => {
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
@@ -116,7 +116,7 @@ where
 
             if let Err(err) = redis_repo
                 .set(
-                    redis_key,
+                    &redis_key,
                     rate_limit_error,
                     Some(rate_limit_error.get_expiration_time()),
                 )

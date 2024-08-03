@@ -28,7 +28,7 @@ impl<'a> RedisRepository<'a> {
     )]
     pub async fn set<V>(
         &mut self,
-        key: String,
+        key: &str,
         value: V,
         expiration_time: Option<i64>,
     ) -> Result<(), RedisUtilsError>
@@ -36,13 +36,13 @@ impl<'a> RedisRepository<'a> {
         V: Debug + serde::Serialize + Send + Sync,
     {
         self.conn
-            .json_set(&key, "$", &value)
+            .json_set(key, "$", &value)
             .await
             .map_err(RedisUtilsError::RedisError)?;
 
         if let Some(expiration_time) = expiration_time {
             self.conn
-                .expire(&key, expiration_time)
+                .expire(key, expiration_time)
                 .await
                 .map_err(RedisUtilsError::RedisError)?;
         }
@@ -51,7 +51,7 @@ impl<'a> RedisRepository<'a> {
     }
 
     #[tracing::instrument(name = "Get data from Redis database", skip(self))]
-    pub async fn get<R>(&mut self, key: String) -> Result<R, RedisUtilsError>
+    pub async fn get<R>(&mut self, key: &str) -> Result<R, RedisUtilsError>
     where
         R: serde::de::DeserializeOwned + redis::FromRedisValue,
     {
@@ -62,7 +62,7 @@ impl<'a> RedisRepository<'a> {
     }
 
     #[tracing::instrument(name = "Check if a key exists on Redis database", skip(self))]
-    pub async fn contains(&mut self, key: String) -> Result<bool, RedisUtilsError> {
+    pub async fn contains(&mut self, key: &str) -> Result<bool, RedisUtilsError> {
         self.conn
             .exists(key)
             .await
@@ -70,7 +70,7 @@ impl<'a> RedisRepository<'a> {
     }
 
     #[tracing::instrument(name = "Get the expiration time of a key", skip(self))]
-    pub async fn get_ttl(&mut self, key: String) -> Result<i64, RedisUtilsError> {
+    pub async fn get_ttl(&mut self, key: &str) -> Result<i64, RedisUtilsError> {
         self.conn
             .ttl(key)
             .await
