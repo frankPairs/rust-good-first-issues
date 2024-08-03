@@ -68,4 +68,12 @@ impl<'a> RedisRepository<'a> {
             .await
             .map_err(RedisUtilsError::RedisError)
     }
+
+    #[tracing::instrument(name = "Get the expiration time of a key", skip(self))]
+    pub async fn get_ttl(&mut self, key: String) -> Result<i64, RedisUtilsError> {
+        self.conn
+            .ttl(key)
+            .await
+            .map_err(RedisUtilsError::RedisError)
+    }
 }

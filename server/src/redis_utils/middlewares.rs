@@ -1,6 +1,7 @@
 use axum::{
     body::Body,
     extract::Request,
+    http::{HeaderMap, HeaderValue},
     response::{IntoResponse, Response},
     Json,
 };
@@ -142,7 +143,23 @@ where
                     }
                 };
 
-                return Ok((StatusCode::OK, Json(res)).into_response());
+                let mut headers: HeaderMap<HeaderValue> = HeaderMap::new();
+
+                let ttl_time = match redis_repo.get_ttl(redis_key).await {
+                    Ok(time) => time,
+                    Err(err) => {
+                        return Ok(
+                            (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()
+                        );
+                    }
+                };
+
+                headers.append(
+                    "Cache-Control",
+                    HeaderValue::from_str(&format!("max-age={}", ttl_time)).unwrap(),
+                );
+
+                return Ok((StatusCode::OK, headers, Json(res)).into_response());
             }
 
             let res: Response = future.await?;
@@ -177,7 +194,14 @@ where
                 return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
             };
 
-            let res = Response::from_parts(parts, Body::from(bytes));
+            let mut res = Response::from_parts(parts, Body::from(bytes));
+
+            if let Some(ttl_time) = expiration_time {
+                res.headers_mut().append(
+                    "Cache-Control",
+                    HeaderValue::from_str(&format!("max-age={}", ttl_time)).unwrap(),
+                );
+            }
 
             Ok(res)
         })

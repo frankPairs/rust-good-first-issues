@@ -5,7 +5,6 @@ use crate::{
 };
 use axum::{handler::Handler, routing, Router};
 use std::sync::Arc;
-use tower::ServiceBuilder;
 
 use super::{
     middlewares::GithubRateLimitLayer,
@@ -13,7 +12,7 @@ use super::{
 };
 use crate::redis_utils::middlewares::RedisCacheLayer;
 
-const REDIS_EXPIRATION_TIME: i64 = 600;
+const GITHUB_REDIS_EXPIRATION_TIME: i64 = 600;
 
 pub struct GithubRepositoryRouter;
 
@@ -22,31 +21,28 @@ impl GithubRepositoryRouter {
         Router::new()
             .route(
                 "/repositories",
-                routing::get(get_github_repositories).layer(
-                    ServiceBuilder::new()
-                        .layer(RedisCacheLayer::<GetGithubRepositoriesResponse>::new(
-                            state.redis_pool.clone(),
-                            Some(RedisCacheOptions {
-                                expiration_time: Some(REDIS_EXPIRATION_TIME),
-                            }),
-                        ))
-                        .layer(GithubRateLimitLayer::new(state.redis_pool.clone())),
-                ),
+                routing::get(get_github_repositories).layer(RedisCacheLayer::<
+                    GetGithubRepositoriesResponse,
+                >::new(
+                    state.redis_pool.clone(),
+                    Some(RedisCacheOptions {
+                        expiration_time: Some(GITHUB_REDIS_EXPIRATION_TIME),
+                    }),
+                )),
             )
             .route(
                 "/repositories/:repo/good-first-issues",
                 routing::get(
-                    get_github_repository_good_first_issues
-                        .layer(ServiceBuilder::new().layer(RedisCacheLayer::<
-                            GetGithubRepositoryGoodFirstIssuesResponse,
-                        >::new(
-                            state.redis_pool.clone(),
-                            Some(RedisCacheOptions {
-                                expiration_time: Some(REDIS_EXPIRATION_TIME),
-                            }),
-                        )))
-                        .layer(GithubRateLimitLayer::new(state.redis_pool.clone())),
+                    get_github_repository_good_first_issues.layer(RedisCacheLayer::<
+                        GetGithubRepositoryGoodFirstIssuesResponse,
+                    >::new(
+                        state.redis_pool.clone(),
+                        Some(RedisCacheOptions {
+                            expiration_time: Some(GITHUB_REDIS_EXPIRATION_TIME),
+                        }),
+                    )),
                 ),
             )
+            .route_layer(GithubRateLimitLayer::new(state.redis_pool.clone()))
     }
 }
