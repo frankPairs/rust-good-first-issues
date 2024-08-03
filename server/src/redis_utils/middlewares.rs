@@ -163,6 +163,12 @@ where
             }
 
             let res: Response = future.await?;
+            let res_status: StatusCode = res.status().clone();
+
+            // If there is any response error, we return the respones before making any operation
+            if res_status.is_client_error() || res_status.is_server_error() {
+                return Ok(res);
+            }
 
             let (parts, body) = res.into_parts();
 
