@@ -3,13 +3,12 @@ use axum::{
     extract::Request,
     http::{HeaderMap, HeaderValue},
     response::{IntoResponse, Response},
-    Json,
+    Json, RequestPartsExt,
 };
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
 use futures_util::future::BoxFuture;
 use http_body_util::BodyExt;
-use itertools::{sorted, Itertools};
 use reqwest::StatusCode;
 use std::{
     fmt::Debug,
@@ -18,9 +17,7 @@ use std::{
 };
 use tower::{Layer, Service};
 
-use super::repositories::RedisRepository;
-
-const REDIS_KEY_DELIMITER: &str = ":";
+use super::{extractors::ExtractRedisKey, repositories::RedisRepository};
 
 #[derive(Clone)]
 pub struct RedisCacheLayer<ResponseType> {
@@ -105,20 +102,21 @@ where
 
     fn call(&mut self, request: Request) -> Self::Future {
         let redis_pool = self.redis_pool.clone();
-        let url = request.uri();
-        let formatted_path = url.path().to_string().replace("/", REDIS_KEY_DELIMITER);
-        let query_params = match url.query() {
-            Some(query) => query,
-            None => "",
-        };
-        let sorted_params = sorted(query_params.split("&")).join(REDIS_KEY_DELIMITER);
-
-        let redis_key = format!("{}{}", formatted_path, sorted_params).replacen(":", "", 1);
         let redis_options = self.options.clone();
+
+        let (mut parts, body) = request.into_parts();
+        let request = Request::from_parts(parts.clone(), body);
 
         let future = self.inner.call(request);
 
         Box::pin(async move {
+            let ExtractRedisKey(redis_key) = match parts.extract::<ExtractRedisKey>().await {
+                Ok(key) => key,
+                Err((status_code, err_message)) => {
+                    return Ok((status_code, err_message).into_response());
+                }
+            };
+
             let mut redis_repo = match RedisRepository::new(&redis_pool).await {
                 Ok(repo) => repo,
                 Err(err) => {
