@@ -132,9 +132,9 @@ where
         return (StatusCode::OK, headers, Json(res)).into_response();
     }
 
-    // Builds the middleware response based on the data coming from the db.
+    // Builds the middleware response based on the data coming from a handler.
     // It saves the response within redis before sending it back through the middleware chain.
-    async fn build_from_db(&mut self, res: Response) -> Response {
+    async fn build_from_handler(&mut self, res: Response) -> Response {
         let (parts, body) = res.into_parts();
 
         let bytes = match body.collect().await {
@@ -177,7 +177,7 @@ where
         res
     }
 
-    async fn should_return_from_cache(&mut self) -> bool {
+    async fn should_build_from_cache(&mut self) -> bool {
         match self.redis_conn.exists(self.redis_key).await {
             Ok(exists) => exists,
             Err(_) => false,
@@ -253,8 +253,11 @@ where
         Box::pin(async move {
             let ExtractRedisKey(redis_key) = match parts.extract::<ExtractRedisKey>().await {
                 Ok(key) => key,
-                Err((status_code, err_message)) => {
-                    return Ok((status_code, err_message).into_response());
+                Err((_, _)) => {
+                    // when there is an error while trying to extract the Redis key, we return the response from the handler
+                    let res: Response = future.await?;
+
+                    return Ok(res);
                 }
             };
 
@@ -267,24 +270,28 @@ where
                 .await
                 {
                     Ok(builder) => builder,
-                    Err(err) => {
-                        return Ok(err.into_response());
+                    Err(_) => {
+                        // if there is any error while trying to connect to Redis, we return the response from the handler before making any operation
+                        let res: Response = future.await?;
+
+                        return Ok(res);
                     }
                 };
 
-            if res_builder.should_return_from_cache().await {
+            if res_builder.should_build_from_cache().await {
                 return Ok(res_builder.build_from_cache().await);
             }
 
             let res: Response = future.await?;
             let res_status: StatusCode = res.status().clone();
 
-            // If there is any response error, we return the respones before making any operation
+            // If there is any response error, we return the as we do not need to build the response from the Redis response builder.
             if res_status.is_client_error() || res_status.is_server_error() {
                 return Ok(res);
             }
 
-            Ok(res_builder.build_from_db(res).await)
+            // It builds the response from the handler and saves it to Redis before returning it.
+            Ok(res_builder.build_from_handler(res).await)
         })
     }
 }
