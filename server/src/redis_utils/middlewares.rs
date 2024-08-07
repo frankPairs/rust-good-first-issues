@@ -5,10 +5,11 @@ use axum::{
     response::{IntoResponse, Response},
     Json, RequestPartsExt,
 };
-use bb8::Pool;
+use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
 use futures_util::future::BoxFuture;
 use http_body_util::BodyExt;
+use redis::{AsyncCommands, JsonAsyncCommands};
 use reqwest::StatusCode;
 use std::{
     fmt::Debug,
@@ -17,7 +18,7 @@ use std::{
 };
 use tower::{Layer, Service};
 
-use super::{extractors::ExtractRedisKey, repositories::RedisRepository};
+use super::{errors::RedisUtilsError, extractors::ExtractRedisKey};
 
 #[derive(Clone)]
 pub struct RedisCacheState {
@@ -80,7 +81,7 @@ where
 }
 
 struct RedisResponseBuilder<'a, ResponseType> {
-    redis_pool: &'a Pool<RedisConnectionManager>,
+    redis_conn: PooledConnection<'a, RedisConnectionManager>,
     redis_key: &'a str,
     options: Option<RedisCacheOptions>,
     phantom_data: PhantomData<ResponseType>,
@@ -95,16 +96,27 @@ where
         + Send
         + Sync,
 {
-    // Builds the middleware response based on the data coming from Redis cache
-    async fn build_from_cache(&self) -> Response {
-        let mut redis_repo = match RedisRepository::new(&self.redis_pool).await {
-            Ok(repo) => repo,
-            Err(err) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
-            }
-        };
+    pub async fn new(
+        redis_pool: &'a Pool<RedisConnectionManager>,
+        redis_key: &'a str,
+        options: Option<RedisCacheOptions>,
+    ) -> Result<Self, RedisUtilsError> {
+        let redis_conn = redis_pool
+            .get()
+            .await
+            .map_err(RedisUtilsError::RedisConnectionError)?;
 
-        let res: ResponseType = match redis_repo.get(self.redis_key).await {
+        Ok(Self {
+            redis_conn,
+            redis_key,
+            options,
+            phantom_data: PhantomData,
+        })
+    }
+
+    // Builds the middleware response based on the data coming from Redis cache
+    async fn build_from_cache(&mut self) -> Response {
+        let res: ResponseType = match self.redis_conn.json_get(self.redis_key, "$").await {
             Ok(json) => json,
             Err(err) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
@@ -113,7 +125,7 @@ where
 
         let mut headers: HeaderMap<HeaderValue> = HeaderMap::new();
 
-        let ttl_time = match redis_repo.get_ttl(self.redis_key).await {
+        let ttl_time: i64 = match self.redis_conn.ttl(self.redis_key).await {
             Ok(time) => time,
             Err(err) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
@@ -130,7 +142,7 @@ where
 
     // Builds the middleware response based on the data coming from the db.
     // It saves the response within redis before sending it back through the middleware chain.
-    async fn build_from_db(&self, res: Response) -> Response {
+    async fn build_from_db(&mut self, res: Response) -> Response {
         let (parts, body) = res.into_parts();
 
         let bytes = match body.collect().await {
@@ -157,15 +169,8 @@ where
             None => None,
         };
 
-        let mut redis_repo = match RedisRepository::new(&self.redis_pool).await {
-            Ok(repo) => repo,
-            Err(err) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
-            }
-        };
-
-        if let Err(err) = redis_repo
-            .set(self.redis_key, res_body, expiration_time)
+        if let Err(err) = self
+            .save_response_to_redis(self.redis_key, res_body, expiration_time)
             .await
         {
             return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
@@ -173,14 +178,42 @@ where
 
         let mut res = Response::from_parts(parts, Body::from(bytes));
 
-        if let Some(ttl_time) = expiration_time {
+        if let Some(exp) = expiration_time {
             res.headers_mut().append(
                 "Cache-Control",
-                HeaderValue::from_str(&format!("max-age={}", ttl_time)).unwrap(),
+                HeaderValue::from_str(&format!("max-age={}", exp)).unwrap(),
             );
         }
 
         res
+    }
+
+    async fn should_return_from_cache(&mut self) -> bool {
+        match self.redis_conn.exists(self.redis_key).await {
+            Ok(exists) => exists,
+            Err(_) => false,
+        }
+    }
+
+    pub async fn save_response_to_redis(
+        &mut self,
+        key: &str,
+        value: ResponseType,
+        expiration_time: Option<i64>,
+    ) -> Result<(), RedisUtilsError> {
+        self.redis_conn
+            .json_set(key, "$", &value)
+            .await
+            .map_err(RedisUtilsError::RedisError)?;
+
+        if let Some(expiration_time) = expiration_time {
+            self.redis_conn
+                .expire(key, expiration_time)
+                .await
+                .map_err(RedisUtilsError::RedisError)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -225,28 +258,21 @@ where
                 }
             };
 
-            let res_builder: RedisResponseBuilder<ResponseType> = RedisResponseBuilder {
-                redis_pool: &state.redis_pool,
-                redis_key: &redis_key,
-                options: state.options,
-                phantom_data: PhantomData,
-            };
+            let mut res_builder: RedisResponseBuilder<ResponseType> =
+                match RedisResponseBuilder::new(
+                    &state.redis_pool,
+                    &redis_key,
+                    state.options.clone(),
+                )
+                .await
+                {
+                    Ok(builder) => builder,
+                    Err(err) => {
+                        return Ok(err.into_response());
+                    }
+                };
 
-            let mut redis_repo = match RedisRepository::new(&state.redis_pool).await {
-                Ok(repo) => repo,
-                Err(err) => {
-                    return Ok(err.into_response());
-                }
-            };
-
-            let contains_resource_key = match redis_repo.contains(&redis_key).await {
-                Ok(value) => value,
-                Err(err) => {
-                    return Ok(err.into_response());
-                }
-            };
-
-            if contains_resource_key {
+            if res_builder.should_return_from_cache().await {
                 return Ok(res_builder.build_from_cache().await);
             }
 

@@ -1,8 +1,9 @@
 use axum::http::HeaderMap;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use redis_macros::FromRedisValue;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, FromRedisValue)]
 pub struct GithubRateLimitError {
     // The time in seconds that you should wait before making the next request
     pub retry_after: Option<i64>,

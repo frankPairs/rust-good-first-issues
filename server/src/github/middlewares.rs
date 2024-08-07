@@ -3,8 +3,8 @@ use axum::{
     response::{IntoResponse, Response},
     Extension, RequestPartsExt,
 };
-
 use futures_util::future::BoxFuture;
+use redis::{AsyncCommands, JsonAsyncCommands};
 use reqwest::StatusCode;
 use std::{
     sync::Arc,
@@ -16,7 +16,7 @@ use tower::{
 };
 
 use super::errors::GithubRateLimitError;
-use crate::{redis_utils::repositories::RedisRepository, state::AppState};
+use crate::state::AppState;
 
 const REDIS_KEY_DELIMITER: &str = ":";
 
@@ -85,18 +85,18 @@ where
                     return Ok(err.into_response());
                 }
             };
-
-            let mut redis_repo = match RedisRepository::new(&state.redis_pool).await {
-                Ok(repo) => repo,
+            let mut redis_conn = match state.redis_pool.get().await {
+                Ok(conn) => conn,
                 Err(err) => {
+                    tracing::error!("{}", err);
+
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
                 }
             };
-            let contains_rate_limit = match redis_repo.contains(&redis_key).await {
+
+            let contains_rate_limit = match redis_conn.exists(&redis_key).await {
                 Ok(value) => value,
-                Err(err) => {
-                    return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
-                }
+                Err(_) => false,
             };
 
             if contains_rate_limit {
@@ -112,20 +112,27 @@ where
             }
 
             let res_headers = res.headers().clone();
-            let rate_limit_error = GithubRateLimitError::from_response_headers(&res_headers);
+            let error = GithubRateLimitError::from_response_headers(&res_headers);
 
-            if let Err(err) = redis_repo
-                .set(
-                    &redis_key,
-                    rate_limit_error,
-                    Some(rate_limit_error.get_expiration_time()),
+            if let Err(err) = redis_conn
+                .json_set::<&str, &str, GithubRateLimitError, GithubRateLimitError>(
+                    &redis_key, "$", &error,
                 )
                 .await
             {
                 tracing::error!("{}", err);
 
                 return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
-            };
+            }
+
+            if let Err(err) = redis_conn
+                .expire::<&str, bool>(&redis_key, error.get_expiration_time())
+                .await
+            {
+                tracing::error!("{}", err);
+
+                return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
+            }
 
             Ok((StatusCode::TOO_MANY_REQUESTS, res_headers).into_response())
         })
