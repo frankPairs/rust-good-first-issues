@@ -21,20 +21,20 @@ use tower::{Layer, Service};
 use super::{errors::RedisUtilsError, extractors::ExtractRedisKey};
 
 #[derive(Clone)]
-pub struct RedisCacheState {
+pub struct RedisCacheConfig {
     redis_pool: Pool<RedisConnectionManager>,
     options: Option<RedisCacheOptions>,
 }
 
 #[derive(Clone)]
-pub struct RedisCacheLayer<ResponseType> {
-    state: RedisCacheState,
-    phantom_data: PhantomData<ResponseType>,
+pub struct RedisCacheOptions {
+    pub expiration_time: Option<i64>,
 }
 
 #[derive(Clone)]
-pub struct RedisCacheOptions {
-    pub expiration_time: Option<i64>,
+pub struct RedisCacheLayer<ResponseType> {
+    state: RedisCacheConfig,
+    phantom_data: PhantomData<ResponseType>,
 }
 
 impl<ResponseType> RedisCacheLayer<ResponseType>
@@ -51,7 +51,7 @@ where
         options: Option<RedisCacheOptions>,
     ) -> RedisCacheLayer<ResponseType> {
         RedisCacheLayer {
-            state: RedisCacheState {
+            state: RedisCacheConfig {
                 options,
                 redis_pool,
             },
@@ -77,6 +77,85 @@ where
             state: self.state.clone(),
             phantom_data: PhantomData,
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct RedisCacheMiddleware<S, ResponseType> {
+    inner: S,
+    state: RedisCacheConfig,
+    phantom_data: PhantomData<ResponseType>,
+}
+
+impl<S, ResponseType> Service<Request> for RedisCacheMiddleware<S, ResponseType>
+where
+    S: Service<Request, Response = Response> + Send + 'static,
+    S::Future: Send + 'static,
+    ResponseType: serde::de::DeserializeOwned
+        + redis::FromRedisValue
+        + serde::Serialize
+        + Debug
+        + Send
+        + Sync,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: Request) -> Self::Future {
+        let config = self.state.clone();
+        let (mut parts, body) = request.into_parts();
+        let request = Request::from_parts(parts.clone(), body);
+
+        let future = self.inner.call(request);
+
+        Box::pin(async move {
+            let ExtractRedisKey(redis_key) = match parts.extract::<ExtractRedisKey>().await {
+                Ok(key) => key,
+                Err((_, _)) => {
+                    // when there is an error while trying to extract the Redis key, we return the response from the handler
+                    let res: Response = future.await?;
+
+                    return Ok(res);
+                }
+            };
+
+            let mut res_builder: RedisResponseBuilder<ResponseType> =
+                match RedisResponseBuilder::new(
+                    &config.redis_pool,
+                    &redis_key,
+                    config.options.clone(),
+                )
+                .await
+                {
+                    Ok(builder) => builder,
+                    Err(_) => {
+                        // if there is any error while trying to connect to Redis, we return the response from the handler before making any operation
+                        let res: Response = future.await?;
+
+                        return Ok(res);
+                    }
+                };
+
+            if res_builder.should_build_from_cache().await {
+                return Ok(res_builder.build_from_cache().await);
+            }
+
+            let res: Response = future.await?;
+            let res_status: StatusCode = res.status().clone();
+
+            // If there is any response error, we return the as we do not need to build the response from the Redis response builder.
+            if res_status.is_client_error() || res_status.is_server_error() {
+                return Ok(res);
+            }
+
+            // It builds the response from the handler and saves it to Redis before returning it.
+            Ok(res_builder.build_from_handler(res).await)
+        })
     }
 }
 
@@ -214,84 +293,5 @@ where
             "Cache-Control",
             HeaderValue::from_str(&format!("max-age={}", expiration_time)).unwrap(),
         );
-    }
-}
-
-#[derive(Clone)]
-pub struct RedisCacheMiddleware<S, ResponseType> {
-    inner: S,
-    state: RedisCacheState,
-    phantom_data: PhantomData<ResponseType>,
-}
-
-impl<S, ResponseType> Service<Request> for RedisCacheMiddleware<S, ResponseType>
-where
-    S: Service<Request, Response = Response> + Send + 'static,
-    S::Future: Send + 'static,
-    ResponseType: serde::de::DeserializeOwned
-        + redis::FromRedisValue
-        + serde::Serialize
-        + Debug
-        + Send
-        + Sync,
-{
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
-    }
-
-    fn call(&mut self, request: Request) -> Self::Future {
-        let state = self.state.clone();
-        let (mut parts, body) = request.into_parts();
-        let request = Request::from_parts(parts.clone(), body);
-
-        let future = self.inner.call(request);
-
-        Box::pin(async move {
-            let ExtractRedisKey(redis_key) = match parts.extract::<ExtractRedisKey>().await {
-                Ok(key) => key,
-                Err((_, _)) => {
-                    // when there is an error while trying to extract the Redis key, we return the response from the handler
-                    let res: Response = future.await?;
-
-                    return Ok(res);
-                }
-            };
-
-            let mut res_builder: RedisResponseBuilder<ResponseType> =
-                match RedisResponseBuilder::new(
-                    &state.redis_pool,
-                    &redis_key,
-                    state.options.clone(),
-                )
-                .await
-                {
-                    Ok(builder) => builder,
-                    Err(_) => {
-                        // if there is any error while trying to connect to Redis, we return the response from the handler before making any operation
-                        let res: Response = future.await?;
-
-                        return Ok(res);
-                    }
-                };
-
-            if res_builder.should_build_from_cache().await {
-                return Ok(res_builder.build_from_cache().await);
-            }
-
-            let res: Response = future.await?;
-            let res_status: StatusCode = res.status().clone();
-
-            // If there is any response error, we return the as we do not need to build the response from the Redis response builder.
-            if res_status.is_client_error() || res_status.is_server_error() {
-                return Ok(res);
-            }
-
-            // It builds the response from the handler and saves it to Redis before returning it.
-            Ok(res_builder.build_from_handler(res).await)
-        })
     }
 }
