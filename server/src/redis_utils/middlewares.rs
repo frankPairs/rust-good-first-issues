@@ -125,17 +125,9 @@ where
 
         let mut headers: HeaderMap<HeaderValue> = HeaderMap::new();
 
-        let ttl_time: i64 = match self.redis_conn.ttl(self.redis_key).await {
-            Ok(time) => time,
-            Err(err) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
-            }
-        };
-
-        headers.append(
-            "Cache-Control",
-            HeaderValue::from_str(&format!("max-age={}", ttl_time)).unwrap(),
-        );
+        if let Ok(expiration_time) = self.redis_conn.ttl(self.redis_key).await {
+            self.set_cache_control_header(&mut headers, expiration_time);
+        }
 
         return (StatusCode::OK, headers, Json(res)).into_response();
     }
@@ -179,10 +171,7 @@ where
         let mut res = Response::from_parts(parts, Body::from(bytes));
 
         if let Some(exp) = expiration_time {
-            res.headers_mut().append(
-                "Cache-Control",
-                HeaderValue::from_str(&format!("max-age={}", exp)).unwrap(),
-            );
+            self.set_cache_control_header(res.headers_mut(), exp);
         }
 
         res
@@ -195,7 +184,7 @@ where
         }
     }
 
-    pub async fn save_response_to_redis(
+    async fn save_response_to_redis(
         &mut self,
         key: &str,
         value: ResponseType,
@@ -214,6 +203,17 @@ where
         }
 
         Ok(())
+    }
+
+    fn set_cache_control_header(
+        &mut self,
+        headers: &mut HeaderMap<HeaderValue>,
+        expiration_time: i64,
+    ) {
+        headers.append(
+            "Cache-Control",
+            HeaderValue::from_str(&format!("max-age={}", expiration_time)).unwrap(),
+        );
     }
 }
 
