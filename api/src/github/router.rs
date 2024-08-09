@@ -22,11 +22,11 @@ impl GithubRepositoryRouter {
                 "/repositories",
                 routing::get(get_github_repositories).layer(RedisCacheLayer::<
                     GetGithubRepositoriesResponse,
-                >::new(
+                >::with_options(
                     state.redis_pool.clone(),
-                    Some(RedisCacheOptions {
+                    RedisCacheOptions {
                         expiration_time: Some(GITHUB_REDIS_EXPIRATION_TIME),
-                    }),
+                    },
                 )),
             )
             .route(
@@ -34,11 +34,11 @@ impl GithubRepositoryRouter {
                 routing::get(
                     get_github_repository_good_first_issues.layer(RedisCacheLayer::<
                         GetGithubRepositoryGoodFirstIssuesResponse,
-                    >::new(
+                    >::with_options(
                         state.redis_pool.clone(),
-                        Some(RedisCacheOptions {
+                        RedisCacheOptions {
                             expiration_time: Some(GITHUB_REDIS_EXPIRATION_TIME),
-                        }),
+                        },
                     )),
                 ),
             )

@@ -38,6 +38,65 @@ pub struct RedisCacheOptions {
 ///
 /// The middleware checks if the key exists in Redis before calling the handler. If the key exists, it returns the response from Redis.
 /// If the key does not exist, it calls the handler, saves the response in Redis, and returns it.
+///
+/// # Examples
+///
+/// You can add the RedisCacheLayer to your handler using the `layer` method.
+///
+/// ```rust
+/// use axum::{handler::get, Router};
+/// use axum_redis_utils::middlewares::{RedisCacheLayer, RedisCacheOptions};
+/// use std::sync::Arc;
+/// use axum_redis_utils::middlewares::RedisCacheLayer;
+/// use bb8_redis::RedisConnectionManager;
+///
+/// #[derive(Clone)]
+/// struct State {
+///    pub redis_pool: Pool<RedisConnectionManager>,
+/// }
+///
+/// let redis_pool = bb8::Pool::builder().build(redis_manager).await.unwrap();
+///
+/// let state = Arc::new(State { redis_pool });
+///
+/// let app = Router::new()
+///    .route(
+///       "/api/v1/users",
+///      get(handler.layer(RedisCacheLayer::<ResponseType>::new(state.redis_pool.clone())))
+///   )
+///   .with_state(state);
+/// ```
+///
+/// ResponsType needs to be a type that implements Deserialize, Serialize and FromRedisValue.
+///
+/// The middleware can be configured with the `with_options` method, which receives a `RedisCacheOptions` struct.
+///
+/// ```rust
+/// use axum::{handler::get, Router};
+/// use axum_redis_utils::middlewares::{RedisCacheLayer, RedisCacheOptions};
+/// use std::sync::Arc;
+/// use axum_redis_utils::middlewares::RedisCacheLayer;
+/// use bb8_redis::RedisConnectionManager;
+///
+/// #[derive(Clone)]
+/// struct State {
+///    pub redis_pool: Pool<RedisConnectionManager>,
+/// }
+///
+/// let redis_pool = bb8::Pool::builder().build(redis_manager).await.unwrap();
+///
+/// let state = Arc::new(State { redis_pool });
+///
+/// let app = Router::new()
+///    .route(
+///       "/api/v1/users",
+///      get(handler.layer(RedisCacheLayer::<ResponseType>::with_options(
+///         state.redis_pool.clone()
+///        RedisCacheOptions {  expiration_time: Some(600) })
+///     ))
+///   )
+///   .with_state(state);
+/// ```
 #[derive(Clone)]
 pub struct RedisCacheLayer<ResponseType> {
     config: RedisCacheConfig,
@@ -48,13 +107,23 @@ impl<ResponseType> RedisCacheLayer<ResponseType>
 where
     ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
 {
-    pub fn new(
+    pub fn new(redis_pool: Pool<RedisConnectionManager>) -> RedisCacheLayer<ResponseType> {
+        RedisCacheLayer {
+            config: RedisCacheConfig {
+                options: None,
+                redis_pool,
+            },
+            phantom_data: PhantomData,
+        }
+    }
+
+    pub fn with_options(
         redis_pool: Pool<RedisConnectionManager>,
-        options: Option<RedisCacheOptions>,
+        options: RedisCacheOptions,
     ) -> RedisCacheLayer<ResponseType> {
         RedisCacheLayer {
             config: RedisCacheConfig {
-                options,
+                options: Some(options),
                 redis_pool,
             },
             phantom_data: PhantomData,
