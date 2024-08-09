@@ -97,6 +97,9 @@ pub struct RedisCacheOptions {
 ///   )
 ///   .with_state(state);
 /// ```
+///
+/// When there is any error while trying to connect to Redis, the middleware returns the response from the handler. The main reason why
+/// the middleware returns the response from the handler is to avoid breaking the application when there is any issue with the Redis connection.
 #[derive(Clone)]
 pub struct RedisCacheLayer<ResponseType> {
     config: RedisCacheConfig,

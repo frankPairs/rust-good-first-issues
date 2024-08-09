@@ -24,6 +24,8 @@ const REDIS_KEY_DELIMITER: &str = ":";
 ///
 /// api:v1:users:age=30:name=John
 ///
+/// When the request does contain nor path neither query parameters, it returns a 400 Bad Request error as the key would be empty.
+///
 pub struct ExtractRedisKey(pub String);
 
 #[async_trait]
@@ -88,7 +90,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_generates_redis_key_when_path_params_are_defined() {
+    async fn test_with_path() {
         let app = app();
 
         let res = app
@@ -111,7 +113,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_generates_redis_key_when_path_and_query_params_are_defined() {
+    async fn test_with_path_and_query() {
         let app = app();
 
         let res = app
@@ -134,7 +136,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_return_error_when_redis_key_is_empty() {
+    async fn test_empty_params_returns_bad_request() {
         let app = app();
 
         let res = app
@@ -154,7 +156,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_generates_redis_key_full_path_when_nested_routes() {
+    async fn test_nested_routes() {
         fn app_with_nested_routes() -> Router {
             Router::new().nest(
                 "/api/v1",
