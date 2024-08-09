@@ -33,7 +33,7 @@ pub struct RedisCacheOptions {
 
 #[derive(Clone)]
 pub struct RedisCacheLayer<ResponseType> {
-    state: RedisCacheConfig,
+    config: RedisCacheConfig,
     phantom_data: PhantomData<ResponseType>,
 }
 
@@ -51,7 +51,7 @@ where
         options: Option<RedisCacheOptions>,
     ) -> RedisCacheLayer<ResponseType> {
         RedisCacheLayer {
-            state: RedisCacheConfig {
+            config: RedisCacheConfig {
                 options,
                 redis_pool,
             },
@@ -74,7 +74,7 @@ where
     fn layer(&self, inner: S) -> Self::Service {
         RedisCacheMiddleware {
             inner,
-            state: self.state.clone(),
+            config: self.config.clone(),
             phantom_data: PhantomData,
         }
     }
@@ -83,7 +83,7 @@ where
 #[derive(Clone)]
 pub struct RedisCacheMiddleware<S, ResponseType> {
     inner: S,
-    state: RedisCacheConfig,
+    config: RedisCacheConfig,
     phantom_data: PhantomData<ResponseType>,
 }
 
@@ -107,7 +107,8 @@ where
     }
 
     fn call(&mut self, request: Request) -> Self::Future {
-        let config = self.state.clone();
+        let config = self.config.clone();
+
         let (mut parts, body) = request.into_parts();
         let request = Request::from_parts(parts.clone(), body);
 
@@ -124,6 +125,7 @@ where
                 }
             };
 
+            // It creates a new instance of the RedisResponseBuilder, which is responsible for building the response from the Redis cache or the handler.
             let mut res_builder: RedisResponseBuilder<ResponseType> =
                 match RedisResponseBuilder::new(
                     &config.redis_pool,
@@ -159,6 +161,7 @@ where
     }
 }
 
+// It contains the logic to build the response from the Redis cache or the handler.
 struct RedisResponseBuilder<'a, ResponseType> {
     redis_conn: PooledConnection<'a, RedisConnectionManager>,
     redis_key: &'a str,
@@ -256,6 +259,7 @@ where
         res
     }
 
+    // Checks if the response should be built from the cache. If the key exists in Redis, it returns true.
     async fn should_build_from_cache(&mut self) -> bool {
         match self.redis_conn.exists(self.redis_key).await {
             Ok(exists) => exists,
@@ -263,6 +267,7 @@ where
         }
     }
 
+    // Saves the response from the handler to Redis.
     async fn save_response_to_redis(
         &mut self,
         key: &str,
@@ -284,6 +289,7 @@ where
         Ok(())
     }
 
+    // Sets the Cache-Control header using the expiration time in seconds.
     fn set_cache_control_header(
         &mut self,
         headers: &mut HeaderMap<HeaderValue>,
