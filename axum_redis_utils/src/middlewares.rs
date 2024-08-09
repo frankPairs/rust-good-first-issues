@@ -98,10 +98,11 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, request: Request) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         let config = self.config.clone();
 
-        let (mut parts, body) = request.into_parts();
+        let (mut parts, body) = req.into_parts();
+
         let request = Request::from_parts(parts.clone(), body);
 
         let future = self.inner.call(request);

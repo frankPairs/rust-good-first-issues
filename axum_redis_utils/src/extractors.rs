@@ -13,14 +13,11 @@
 ///
 /// api:v1:users:age=30:name=John
 ///
-/// The path used depend on where the RedisCacheLayer is mounted. For example, if the RedisCacheLayer is mounted at users layer, the key would be:
-///
-/// users:age=30:name=John
-///
 use axum::{
     async_trait,
-    extract::FromRequestParts,
+    extract::{FromRequestParts, OriginalUri},
     http::{request::Parts, StatusCode},
+    RequestPartsExt,
 };
 
 use itertools::{sorted, Itertools};
@@ -37,26 +34,149 @@ where
     type Rejection = (StatusCode, &'static str);
 
     async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
-        let url = parts.uri.clone();
-        let mut formatted_path = url.path().to_string().replace("/", REDIS_KEY_DELIMITER);
-        let query_params = match url.query() {
+        let original_uri = parts.extract::<OriginalUri>().await.unwrap();
+
+        let formatted_path = original_uri
+            .path()
+            .to_string()
+            .replace("/", REDIS_KEY_DELIMITER);
+        let query_params = match original_uri.query() {
             Some(query) => query,
             None => "",
         };
-        let mut sorted_params = sorted(query_params.split("&")).join(REDIS_KEY_DELIMITER);
+        let sorted_params = sorted(query_params.split("&")).join(REDIS_KEY_DELIMITER);
 
-        // Removes the first colon from the formatted_path and sorted_params if they exist. This is done to ensure the key is consistent.
-        // For example, if the path is /api/v1/users and the query parameters are name=John&age=30, the key should be api:v1:users:age=30:name=John
-        if Some(':') == formatted_path.chars().next() {
-            formatted_path = formatted_path.chars().skip(1).collect::<String>();
+        let mut redis_key = vec![formatted_path, sorted_params].join(REDIS_KEY_DELIMITER);
+
+        if redis_key.starts_with(REDIS_KEY_DELIMITER) {
+            redis_key.remove(0);
         }
 
-        if Some(':') == sorted_params.chars().next() {
-            sorted_params = sorted_params.chars().skip(1).collect::<String>();
+        if redis_key.ends_with(REDIS_KEY_DELIMITER) {
+            redis_key.pop();
         }
 
-        let redis_key = format!("{}:{}", formatted_path, sorted_params);
+        if redis_key.is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "Invalid key"));
+        }
 
         Ok(ExtractRedisKey(redis_key))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{
+        body::Body,
+        http::{self, Request, StatusCode},
+        routing::get,
+        Router,
+    };
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    use super::*;
+
+    async fn handler(key: ExtractRedisKey) -> String {
+        key.0
+    }
+
+    fn app() -> Router {
+        Router::new()
+            .route("/api/v1/test", get(handler))
+            .route("/", get(handler))
+    }
+
+    #[tokio::test]
+    async fn when_include_path_params_it_should_build_redis_key() {
+        let app = app();
+
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri("/api/v1/test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let status = res.status();
+        let res_body = res.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(res_body.to_vec()).unwrap();
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, "api:v1:test");
+    }
+
+    #[tokio::test]
+    async fn when_include_path_and_query_params_it_should_build_redis_key() {
+        let app = app();
+
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri("/api/v1/test?name=John&age=30")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let status = res.status();
+        let res_body = res.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(res_body.to_vec()).unwrap();
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, "api:v1:test:age=30:name=John");
+    }
+
+    #[tokio::test]
+    async fn when_empty_path_and_params_it_should_return_bad_request_error() {
+        let app = app();
+
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri("/")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let status = res.status();
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn when_nested_router_it_should_build_redis_key_using_full_path() {
+        fn app_with_nested_routes() -> Router {
+            Router::new().nest("/api/v1", Router::new().route("/test", get(handler)))
+        }
+
+        let app = app_with_nested_routes();
+
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri("/api/v1/test?name=John&age=30")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let status = res.status();
+        let res_body = res.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(res_body.to_vec()).unwrap();
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, "api:v1:test:age=30:name=John");
     }
 }
