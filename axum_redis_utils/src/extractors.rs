@@ -77,14 +77,14 @@ mod tests {
 
     use super::*;
 
-    async fn handler(key: ExtractRedisKey) -> String {
+    async fn handler_with_extract_redis_key(key: ExtractRedisKey) -> String {
         key.0
     }
 
     fn app() -> Router {
         Router::new()
-            .route("/api/v1/test", get(handler))
-            .route("/", get(handler))
+            .route("/api/v1/test", get(handler_with_extract_redis_key))
+            .route("/", get(handler_with_extract_redis_key))
     }
 
     #[tokio::test]
@@ -156,7 +156,10 @@ mod tests {
     #[tokio::test]
     async fn when_nested_router_it_should_build_redis_key_using_full_path() {
         fn app_with_nested_routes() -> Router {
-            Router::new().nest("/api/v1", Router::new().route("/test", get(handler)))
+            Router::new().nest(
+                "/api/v1",
+                Router::new().route("/test", get(handler_with_extract_redis_key)),
+            )
         }
 
         let app = app_with_nested_routes();
