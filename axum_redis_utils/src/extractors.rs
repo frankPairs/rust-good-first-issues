@@ -1,3 +1,14 @@
+use axum::{
+    async_trait,
+    extract::{FromRequestParts, OriginalUri},
+    http::{request::Parts, StatusCode},
+    RequestPartsExt,
+};
+
+use itertools::{sorted, Itertools};
+
+const REDIS_KEY_DELIMITER: &str = ":";
+
 /// ExtractRedisKey is an Axum extractor that extracts a Redis key from the request path and query parameters. This extractor is used within the RedisCacheLayer to generate a key for the cache.
 ///
 /// The key is constructed by concatenating the path and query parameters. Query parameters are sorted alphabetically in order to ensure the same query parameters result in the same key,
@@ -13,17 +24,6 @@
 ///
 /// api:v1:users:age=30:name=John
 ///
-use axum::{
-    async_trait,
-    extract::{FromRequestParts, OriginalUri},
-    http::{request::Parts, StatusCode},
-    RequestPartsExt,
-};
-
-use itertools::{sorted, Itertools};
-
-const REDIS_KEY_DELIMITER: &str = ":";
-
 pub struct ExtractRedisKey(pub String);
 
 #[async_trait]
