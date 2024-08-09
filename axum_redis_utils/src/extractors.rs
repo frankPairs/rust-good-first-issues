@@ -88,7 +88,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_include_path_params_it_should_build_redis_key() {
+    async fn test_generates_redis_key_when_path_params_are_defined() {
         let app = app();
 
         let res = app
@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_include_path_and_query_params_it_should_build_redis_key() {
+    async fn test_generates_redis_key_when_path_and_query_params_are_defined() {
         let app = app();
 
         let res = app
@@ -134,7 +134,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_empty_path_and_params_it_should_return_bad_request_error() {
+    async fn test_return_error_when_redis_key_is_empty() {
         let app = app();
 
         let res = app
@@ -154,7 +154,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_nested_router_it_should_build_redis_key_using_full_path() {
+    async fn test_generates_redis_key_full_path_when_nested_routes() {
         fn app_with_nested_routes() -> Router {
             Router::new().nest(
                 "/api/v1",
