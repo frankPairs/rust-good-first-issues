@@ -36,8 +36,7 @@ async fn main() -> Result<(), Error> {
     let redis_pool = bb8::Pool::builder()
         .connection_timeout(Duration::from_secs(REDIS_POOL_CONNECTION_TIMEOUT))
         .build(redis_manager)
-        .await
-        .unwrap();
+        .await?;
 
     let state = Arc::new(AppState {
         github_settings,
@@ -56,7 +55,7 @@ async fn main() -> Result<(), Error> {
 
     tracing::info!("Server running on {}", addr);
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
