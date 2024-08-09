@@ -15,9 +15,7 @@ use crate::github::models::GetGithubRepositoriesParams;
 use super::models::{
     GetGithubRepositoryGoodFirstIssuesParams, GetGithubRepositoryGoodFirstIssuesPathParams,
 };
-use super::repositories::http::repositories::{
-    GithubGoodFirstIssuesHttpRepository, GithubRepositoriesHttpRepository,
-};
+use super::repositories::{GithubGoodFirstIssuesHttpRepository, GithubRepositoriesHttpRepository};
 
 #[tracing::instrument(name = "Get Github repositories handler", skip(state))]
 pub async fn get_github_repositories(

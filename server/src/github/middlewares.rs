@@ -1,11 +1,11 @@
 use axum::{
     extract::Request,
+    http::StatusCode,
     response::{IntoResponse, Response},
     Extension, RequestPartsExt,
 };
 use futures_util::future::BoxFuture;
 use redis::{AsyncCommands, JsonAsyncCommands};
-use reqwest::StatusCode;
 use std::{
     sync::Arc,
     task::{Context, Poll},

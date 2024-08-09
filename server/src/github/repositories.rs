@@ -1,13 +1,12 @@
 use reqwest::Client;
 
-use crate::github::models::GithubRepository as GithubRepositoryModel;
+use crate::github::client::GithubHttpClient;
 use crate::github::models::{
     GetGithubRepositoriesParams, GetGithubRepositoriesResponse,
     GetGithubRepositoryGoodFirstIssuesParams, GetGithubRepositoryGoodFirstIssuesPathParams,
     GetGithubRepositoryGoodFirstIssuesResponse, GithubIssue, GithubIssueAPI, GithubPullRequest,
-    SearchGithubRepositoriesResponseAPI,
+    GithubRepository as GithubRepositoryModel, SearchGithubRepositoriesResponseAPI,
 };
-use crate::github::repositories::http::client::GithubHttpClient;
 use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 
 const DEFAULT_PER_PAGE: u32 = 10;
@@ -55,7 +54,7 @@ impl GithubRepositoriesHttpRepository {
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
         if !response.status().is_success() {
-            return Err(self.http_client.into_error(response).await);
+            return Err(self.http_client.parse_error_from_response(response).await);
         }
 
         let json: SearchGithubRepositoriesResponseAPI = response
@@ -136,7 +135,7 @@ impl GithubGoodFirstIssuesHttpRepository {
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
         if !response.status().is_success() {
-            return Err(self.http_client.into_error(response).await);
+            return Err(self.http_client.parse_error_from_response(response).await);
         }
 
         let json: Vec<GithubIssueAPI> = response

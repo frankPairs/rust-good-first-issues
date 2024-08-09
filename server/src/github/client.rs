@@ -43,7 +43,10 @@ impl GithubHttpClient {
         Url::parse(GITHUB_API_BASE_URL).map_err(RustGoodFirstIssuesError::ParseUrlError)
     }
 
-    pub async fn into_error(&self, response: reqwest::Response) -> RustGoodFirstIssuesError {
+    pub async fn parse_error_from_response(
+        &self,
+        response: reqwest::Response,
+    ) -> RustGoodFirstIssuesError {
         let status_code = response.status();
         let headers = response.headers().clone();
         let result: Result<GithubApiErrorPayload, reqwest::Error> = response.json().await;
