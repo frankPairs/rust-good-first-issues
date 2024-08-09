@@ -1,16 +1,15 @@
 use crate::{
     github::handlers::{get_github_repositories, get_github_repository_good_first_issues},
-    redis_utils::middlewares::RedisCacheOptions,
     state::AppState,
 };
 use axum::{handler::Handler, routing, Router};
+use axum_redis_utils::middlewares::{RedisCacheLayer, RedisCacheOptions};
 use std::sync::Arc;
 
 use super::{
     middlewares::GithubRateLimitServiceBuilder,
     models::{GetGithubRepositoriesResponse, GetGithubRepositoryGoodFirstIssuesResponse},
 };
-use crate::redis_utils::middlewares::RedisCacheLayer;
 
 const GITHUB_REDIS_EXPIRATION_TIME: i64 = 600;
 

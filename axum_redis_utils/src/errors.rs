@@ -1,9 +1,12 @@
-use axum::response::{IntoResponse, Response};
-use reqwest::StatusCode;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use redis::RedisError;
 
 #[derive(Debug)]
 pub enum RedisUtilsError {
-    RedisError(redis::RedisError),
+    RedisError(RedisError),
     RedisConnectionError(bb8::RunError<redis::RedisError>),
 }
 

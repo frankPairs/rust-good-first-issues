@@ -1,0 +1,2 @@
+[workspace]
+members = ["axum_redis_utils", "server"]

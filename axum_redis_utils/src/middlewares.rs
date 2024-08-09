@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{HeaderMap, HeaderValue},
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     Json, RequestPartsExt,
 };
@@ -9,8 +9,8 @@ use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
 use futures_util::future::BoxFuture;
 use http_body_util::BodyExt;
-use redis::{AsyncCommands, JsonAsyncCommands};
-use reqwest::StatusCode;
+use redis::{AsyncCommands, FromRedisValue, JsonAsyncCommands};
+use serde::{de::DeserializeOwned, Serialize};
 use std::{
     fmt::Debug,
     marker::PhantomData,
@@ -39,12 +39,7 @@ pub struct RedisCacheLayer<ResponseType> {
 
 impl<ResponseType> RedisCacheLayer<ResponseType>
 where
-    ResponseType: serde::de::DeserializeOwned
-        + redis::FromRedisValue
-        + serde::Serialize
-        + Debug
-        + Send
-        + Sync,
+    ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
 {
     pub fn new(
         redis_pool: Pool<RedisConnectionManager>,
@@ -62,12 +57,7 @@ where
 
 impl<S, ResponseType> Layer<S> for RedisCacheLayer<ResponseType>
 where
-    ResponseType: serde::de::DeserializeOwned
-        + redis::FromRedisValue
-        + serde::Serialize
-        + Debug
-        + Send
-        + Sync,
+    ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
 {
     type Service = RedisCacheMiddleware<S, ResponseType>;
 
@@ -91,12 +81,7 @@ impl<S, ResponseType> Service<Request> for RedisCacheMiddleware<S, ResponseType>
 where
     S: Service<Request, Response = Response> + Send + 'static,
     S::Future: Send + 'static,
-    ResponseType: serde::de::DeserializeOwned
-        + redis::FromRedisValue
-        + serde::Serialize
-        + Debug
-        + Send
-        + Sync,
+    ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
 {
     type Response = S::Response;
     type Error = S::Error;
