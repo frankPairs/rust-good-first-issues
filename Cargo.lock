@@ -179,6 +179,7 @@ dependencies = [
  "axum",
  "bb8",
  "bb8-redis",
+ "dotenv",
  "futures-util",
  "http-body-util",
  "itertools",
