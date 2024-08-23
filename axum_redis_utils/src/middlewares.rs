@@ -7,6 +7,7 @@ use axum::{
 };
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
+use chrono::Utc;
 use futures_util::future::BoxFuture;
 use http_body_util::BodyExt;
 use redis::{AsyncCommands, FromRedisValue, JsonAsyncCommands};
@@ -272,9 +273,12 @@ where
 
         let mut headers: HeaderMap<HeaderValue> = HeaderMap::new();
 
-        if let Ok(expiration_time) = self.redis_conn.ttl(self.redis_key).await {
-            self.set_cache_control_header(&mut headers, expiration_time);
-        }
+        let expiration_time = match self.redis_conn.ttl(self.redis_key).await {
+            Ok(time) => time,
+            Err(_) => None,
+        };
+
+        self.set_cache_headers(&mut headers, expiration_time);
 
         return (StatusCode::OK, headers, Json(res)).into_response();
     }
@@ -315,13 +319,7 @@ where
             return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
         };
 
-        let mut res = Response::from_parts(parts, Body::from(bytes));
-
-        if let Some(exp) = expiration_time {
-            self.set_cache_control_header(res.headers_mut(), exp);
-        }
-
-        res
+        Response::from_parts(parts, Body::from(bytes))
     }
 
     // Checks if the response should be built from the cache. If the key exists in Redis, it returns true.
@@ -355,14 +353,21 @@ where
     }
 
     // Sets the Cache-Control header using the expiration time in seconds.
-    fn set_cache_control_header(
+    fn set_cache_headers(
         &mut self,
         headers: &mut HeaderMap<HeaderValue>,
-        expiration_time: i64,
+        expiration_time: Option<i64>,
     ) {
+        if let Some(expiration_time) = expiration_time {
+            headers.append(
+                "Cache-Control",
+                HeaderValue::from_str(&format!("max-age={}", expiration_time)).unwrap(),
+            );
+        }
+
         headers.append(
-            "Cache-Control",
-            HeaderValue::from_str(&format!("max-age={}", expiration_time)).unwrap(),
+            "Last-Modified",
+            HeaderValue::from_str(&Utc::now().to_string()).unwrap(),
         );
     }
 }

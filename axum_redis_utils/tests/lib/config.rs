@@ -68,7 +68,7 @@ impl RedisSettings {
 }
 
 pub fn get_app_settings() -> Result<Settings, SettingsError> {
-    dotenv::dotenv().map_err(|_| SettingsError::EnvironmentLoad)?;
+    dotenv::from_filename(".env.test").map_err(|_| SettingsError::EnvironmentLoad)?;
 
     Ok(Settings {
         application: ApplicationSettings::new()?,
