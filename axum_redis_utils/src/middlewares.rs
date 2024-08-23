@@ -358,6 +358,19 @@ where
         headers: &mut HeaderMap<HeaderValue>,
         expiration_time: Option<i64>,
     ) {
+        // If the expiration time is less than or equal to zero, it means that the key exists but it does not contain
+        // any expiration time. In this case, we do not set the Cache-Control header.
+        let expiration_time: Option<i64> = match expiration_time {
+            Some(time) => {
+                if time > 0 {
+                    Some(time)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
+
         if let Some(expiration_time) = expiration_time {
             headers.append(
                 "Cache-Control",

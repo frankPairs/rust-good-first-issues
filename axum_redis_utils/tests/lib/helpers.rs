@@ -41,14 +41,6 @@ impl TestApp {
 
         let base_url = listener.local_addr().unwrap();
 
-        let mut redis_conn = self.redis_pool.get().await.unwrap();
-
-        // Flush all keys from the redis cache
-        redis::cmd("FLUSHALL")
-            .exec_async(&mut *redis_conn)
-            .await
-            .expect("Unable to flush redis cache");
-
         tokio::spawn(async move {
             axum::serve(listener, app)
                 .await
