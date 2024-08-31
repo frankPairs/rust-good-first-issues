@@ -377,10 +377,5 @@ where
                 HeaderValue::from_str(&format!("max-age={}", expiration_time)).unwrap(),
             );
         }
-
-        headers.append(
-            "Last-Modified",
-            HeaderValue::from_str(&Utc::now().to_string()).unwrap(),
-        );
     }
 }

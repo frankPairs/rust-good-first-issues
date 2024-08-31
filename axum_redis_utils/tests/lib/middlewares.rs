@@ -112,7 +112,6 @@ async fn test_return_cache_response_without_expiration_time() {
         .expect("Failed to execute api request.");
 
     assert_eq!(response.status().as_u16(), 200);
-    assert_eq!(response.headers().contains_key("Last-Modified"), true);
     // When there is not expiration time, the Cache-Control header should not be present
     assert_eq!(response.headers().contains_key("Cache-Control"), false);
 }
@@ -151,7 +150,6 @@ async fn test_return_cache_response_with_expiration_time() {
         .expect("Failed to execute api request.");
 
     assert_eq!(response.status().as_u16(), 200);
-    assert_eq!(response.headers().contains_key("Last-Modified"), true);
     assert_eq!(response.headers().contains_key("Cache-Control"), true);
     assert_eq!(
         response.headers().get("Cache-Control").unwrap(),
