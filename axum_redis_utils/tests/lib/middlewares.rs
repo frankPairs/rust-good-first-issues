@@ -55,7 +55,7 @@ async fn test_save_api_result_on_redis() {
 }
 
 #[tokio::test]
-async fn test_not_contain_cache_headers_when_response_from_handler() {
+async fn test_not_contain_cache_headers_when_response_is_from_handler() {
     let test_uuid = uuid::Uuid::new_v4();
     let test_app = TestApp::new().await;
     let app = Router::new().route(

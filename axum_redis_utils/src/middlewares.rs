@@ -7,7 +7,6 @@ use axum::{
 };
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
-use chrono::Utc;
 use futures_util::future::BoxFuture;
 use http_body_util::BodyExt;
 use redis::{AsyncCommands, FromRedisValue, JsonAsyncCommands};
