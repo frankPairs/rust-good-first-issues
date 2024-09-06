@@ -34,3 +34,6 @@ bb8 = "0.8.3"
 redis-macros = "0.4.0"
 futures-util = "0.3.30"
 axum_redis_utils = { path = "../axum_redis_utils" }
+
+[dev-dependencies]
+wiremock = "0.6.1"

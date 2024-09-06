@@ -71,6 +71,7 @@ where
     fn call(&mut self, request: Request) -> Self::Future {
         let url = request.uri();
         let formatted_path = url.path().to_string().replace("/", REDIS_KEY_DELIMITER);
+
         let redis_key = format!("errors:rate_limit:{}", formatted_path).replacen(":", "", 1);
 
         let (mut parts, body) = request.into_parts();

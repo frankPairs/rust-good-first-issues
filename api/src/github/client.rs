@@ -1,8 +1,7 @@
 use reqwest::{header, Client, Url};
 
-use crate::errors::RustGoodFirstIssuesError;
+use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 
-const GITHUB_API_BASE_URL: &str = "https://api.github.com";
 const GITHUB_API_VERSION: &str = "2022-11-28";
 const GITHUB_API_USERNAME: &str = "frankPairs";
 
@@ -13,16 +12,17 @@ struct GithubApiErrorPayload {
 
 pub struct GithubHttpClient {
     client: Client,
+    settings: GithubSettings,
 }
 
 impl GithubHttpClient {
-    pub fn new(github_token: String) -> Result<Self, RustGoodFirstIssuesError> {
+    pub fn new(settings: GithubSettings) -> Result<Self, RustGoodFirstIssuesError> {
         let mut headers = header::HeaderMap::new();
 
         headers.insert("Accept", "application/vnd.github+json".parse().unwrap());
         headers.insert(
             "Authorization",
-            format!("Bearer {}", github_token).parse().unwrap(),
+            format!("Bearer {}", settings.get_token()).parse().unwrap(),
         );
         headers.insert("X-GitHub-Api-Version", GITHUB_API_VERSION.parse().unwrap());
         headers.insert("User-Agent", GITHUB_API_USERNAME.parse().unwrap());
@@ -32,7 +32,7 @@ impl GithubHttpClient {
             .build()
             .map_err(RustGoodFirstIssuesError::ReqwestError)?;
 
-        Ok(Self { client })
+        Ok(Self { client, settings })
     }
 
     pub fn get_client(&self) -> &Client {
@@ -40,7 +40,7 @@ impl GithubHttpClient {
     }
 
     pub fn get_base_url(&self) -> Result<Url, RustGoodFirstIssuesError> {
-        Url::parse(GITHUB_API_BASE_URL).map_err(RustGoodFirstIssuesError::ParseUrlError)
+        Url::parse(&self.settings.get_api_url()).map_err(RustGoodFirstIssuesError::ParseUrlError)
     }
 
     pub async fn parse_error_from_response(

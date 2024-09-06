@@ -2,6 +2,6 @@ mod client;
 mod errors;
 mod handlers;
 mod middlewares;
-mod models;
+pub mod models;
 mod repositories;
 pub mod router;

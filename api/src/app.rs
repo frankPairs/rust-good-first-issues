@@ -21,7 +21,6 @@ impl AppBuilder {
     }
 
     pub async fn build(&self) -> Result<Router, anyhow::Error> {
-        // let settings = get_app_settings().expect("Unable to get server settings");
         let github_settings = self.settings.github.clone();
         let redis_settings = self.settings.redis.clone();
 

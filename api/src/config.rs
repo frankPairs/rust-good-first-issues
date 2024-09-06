@@ -54,24 +54,41 @@ impl ApplicationSettings {
     pub fn get_addr(&self) -> Result<SocketAddr, AddrParseError> {
         format!("{}:{}", self.host, self.port).parse()
     }
+
+    pub fn set_port(&mut self, port: u32) {
+        self.port = port;
+    }
 }
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct GithubSettings {
     token: Secret<String>,
+    api_url: String,
 }
 
 impl GithubSettings {
     pub fn new() -> Result<Self, SettingsError> {
         let token = get_env_value("GITHUB_TOKEN")?
             .parse()
-            .map_err(|_| SettingsError::InvalidVariableFormat("PORT".to_string()))?;
+            .map_err(|_| SettingsError::InvalidVariableFormat("GITHUB_TOKEN".to_string()))?;
 
-        Ok(GithubSettings { token })
+        let api_url = get_env_value("GITHUB_API_BASE_URL")?
+            .parse()
+            .map_err(|_| SettingsError::InvalidVariableFormat("GITHUB_API_BASE_URL".to_string()))?;
+
+        Ok(GithubSettings { token, api_url })
     }
 
     pub fn get_token(&self) -> String {
         self.token.expose_secret().clone()
+    }
+
+    pub fn get_api_url(&self) -> String {
+        self.api_url.clone()
+    }
+
+    pub fn set_api_url(&mut self, api_url: String) {
+        self.api_url = api_url;
     }
 }
 

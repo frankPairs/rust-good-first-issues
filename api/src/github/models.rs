@@ -1,13 +1,13 @@
 use redis_macros::FromRedisValue;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SearchGithubRepositoriesResponseAPI {
     pub total_count: u32,
     pub items: Vec<GithubRepositoryAPI>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct GithubRepositoryAPI {
     pub id: u32,
     pub full_name: String,
@@ -37,12 +37,12 @@ pub struct GithubPullRequestAPI {
     pub html_url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct GithubRepositoryOwnerAPI {
     pub avatar_url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct GithubRepositoryLicenseAPI {
     pub name: String,
 }

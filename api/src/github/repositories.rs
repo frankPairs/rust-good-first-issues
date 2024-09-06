@@ -18,8 +18,7 @@ pub struct GithubRepositoriesHttpRepository {
 
 impl GithubRepositoriesHttpRepository {
     pub fn new(settings: GithubSettings) -> Result<Self, RustGoodFirstIssuesError> {
-        let github_token = settings.get_token();
-        let http_client = GithubHttpClient::new(github_token)?;
+        let http_client = GithubHttpClient::new(settings)?;
 
         Ok(Self { http_client })
     }
@@ -93,8 +92,7 @@ pub struct GithubGoodFirstIssuesHttpRepository {
 
 impl GithubGoodFirstIssuesHttpRepository {
     pub fn new(settings: GithubSettings) -> Result<Self, RustGoodFirstIssuesError> {
-        let github_token = settings.get_token();
-        let http_client = GithubHttpClient::new(github_token)?;
+        let http_client = GithubHttpClient::new(settings)?;
 
         Ok(Self { http_client })
     }
