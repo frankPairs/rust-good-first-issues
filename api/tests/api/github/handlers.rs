@@ -1,4 +1,7 @@
-use api::github::models::{GetGithubRepositoriesResponse, SearchGithubRepositoriesResponseAPI};
+use api::github::{
+    client::GithubApiErrorPayload,
+    models::{GetGithubRepositoriesResponse, SearchGithubRepositoriesResponseAPI},
+};
 use wiremock::{
     matchers::{method, path},
     Mock, ResponseTemplate,
@@ -162,4 +165,44 @@ async fn test_get_github_repositories_from_redis() {
     assert_eq!(item.open_issues_count, 0);
     assert_eq!(item.has_issues, true);
     assert_eq!(item.license, None);
+}
+
+#[tokio::test]
+async fn test_get_github_repositories_error() {
+    let app = TestApp::new().await;
+    let base_url = app.spawn_app().await;
+    // It generates a random page using the timestamp. This is necessary to avoid response coming from the Redis cache.
+    let random_page = chrono::Utc::now().timestamp();
+
+    let url = format!(
+        "{}/api/v1/github/repositories?page={}",
+        base_url, random_page
+    );
+    let client = reqwest::Client::new();
+
+    let mock_github_error: GithubApiErrorPayload = serde_json::from_str(
+        r#"{
+            "message": "Validation Failed"
+        }"#,
+    )
+    .unwrap();
+
+    Mock::given(path("/search/repositories"))
+        .and(method("GET"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(mock_github_error))
+        .named("Throw error when getting repositories from Github")
+        .expect(1)
+        .mount(&app.github_server)
+        .await;
+
+    // Second request should return the results from Redis
+    let res = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to execute api request.");
+
+    let status = res.status();
+
+    assert_eq!(status, 400);
 }

@@ -5,8 +5,8 @@ use crate::{config::GithubSettings, errors::RustGoodFirstIssuesError};
 const GITHUB_API_VERSION: &str = "2022-11-28";
 const GITHUB_API_USERNAME: &str = "frankPairs";
 
-#[derive(Debug, serde::Deserialize)]
-struct GithubApiErrorPayload {
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub struct GithubApiErrorPayload {
     message: String,
 }
 
