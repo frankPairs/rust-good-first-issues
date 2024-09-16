@@ -123,7 +123,7 @@ async fn test_get_github_repositories_from_redis() {
     Mock::given(path("/search/repositories"))
         .and(method("GET"))
         .respond_with(ResponseTemplate::new(200).set_body_json(mock_github_response))
-        .named("Get repositories from Github")
+        .named("Get repositories from Redis")
         .expect(1)
         .mount(&app.github_server)
         .await;
@@ -205,4 +205,48 @@ async fn test_get_github_repositories_error() {
     let status = res.status();
 
     assert_eq!(status, 400);
+}
+
+#[tokio::test]
+async fn test_get_github_repositories_rate_limit_error() {
+    let app = TestApp::new().await;
+    let base_url = app.spawn_app().await;
+    // It generates a random page using the timestamp. This is necessary to avoid response coming from the Redis cache.
+    let random_page = chrono::Utc::now().timestamp();
+
+    let url = format!(
+        "{}/api/v1/github/repositories?page={}",
+        base_url, random_page
+    );
+    let client = reqwest::Client::new();
+
+    let mock_github_error: GithubApiErrorPayload = serde_json::from_str(
+        r#"{
+            "message": "Too many requests"
+        }"#,
+    )
+    .unwrap();
+
+    Mock::given(path("/search/repositories"))
+        .and(method("GET"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .set_body_json(mock_github_error)
+                .append_header("retry-after", "60"),
+        )
+        .named("Throw rate limit error when getting repositories from Github")
+        .expect(1)
+        .mount(&app.github_server)
+        .await;
+
+    // Second request should return the results from Redis
+    let res = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to execute api request.");
+
+    let status = res.status();
+
+    assert_eq!(status, 429);
 }

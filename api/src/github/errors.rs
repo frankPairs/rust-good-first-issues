@@ -3,6 +3,8 @@ use chrono::{DateTime, Utc};
 use redis_macros::FromRedisValue;
 use serde::{Deserialize, Serialize};
 
+const DEFAULT_RATE_LIMIT_EXP: i64 = 600;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, FromRedisValue)]
 pub struct GithubRateLimitError {
     // The time in seconds that you should wait before making the next request
@@ -52,8 +54,7 @@ impl GithubRateLimitError {
             return reset_expiration_date.num_seconds();
         }
 
-        // If we reach this code, it means that there is not any rate limit error
-        0
+        DEFAULT_RATE_LIMIT_EXP
     }
 
     pub fn from_response_headers(headers: &HeaderMap) -> Self {

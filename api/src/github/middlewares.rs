@@ -70,9 +70,13 @@ where
 
     fn call(&mut self, request: Request) -> Self::Future {
         let url = request.uri();
-        let formatted_path = url.path().to_string().replace("/", REDIS_KEY_DELIMITER);
+        let formatted_path = url
+            .path()
+            .to_string()
+            .replace("/", REDIS_KEY_DELIMITER)
+            .replacen(":", "", 1);
 
-        let redis_key = format!("errors:rate_limit:{}", formatted_path).replacen(":", "", 1);
+        let redis_key = format!("errors:rate_limit:{}", formatted_path);
 
         let (mut parts, body) = request.into_parts();
         let request = Request::from_parts(parts.clone(), body);
@@ -83,13 +87,15 @@ where
             let Extension(state) = match parts.extract::<Extension<Arc<AppState>>>().await {
                 Ok(state) => state,
                 Err(err) => {
+                    tracing::error!("Error when extracting state: {}", err);
+
                     return Ok(err.into_response());
                 }
             };
             let mut redis_conn = match state.redis_pool.get().await {
                 Ok(conn) => conn,
                 Err(err) => {
-                    tracing::error!("{}", err);
+                    tracing::error!("Error when connection to Redis pool: {}", err);
 
                     return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
                 }
@@ -116,12 +122,12 @@ where
             let error = GithubRateLimitError::from_response_headers(&res_headers);
 
             if let Err(err) = redis_conn
-                .json_set::<&str, &str, GithubRateLimitError, GithubRateLimitError>(
+                .json_set::<&str, &str, GithubRateLimitError, Option<String>>(
                     &redis_key, "$", &error,
                 )
                 .await
             {
-                tracing::error!("{}", err);
+                tracing::error!("Error when setting rate limit redis key: {}", err);
 
                 return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
             }
@@ -130,11 +136,12 @@ where
                 .expire::<&str, bool>(&redis_key, error.get_expiration_time())
                 .await
             {
-                tracing::error!("{}", err);
+                tracing::error!("Error when getting rate limit expiration time: {}", err);
 
                 return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
             }
 
+            println!("Rate limit error: {:?}", error);
             Ok((StatusCode::TOO_MANY_REQUESTS, res_headers).into_response())
         })
     }
