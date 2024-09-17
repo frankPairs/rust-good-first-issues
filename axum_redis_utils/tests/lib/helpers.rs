@@ -1,12 +1,15 @@
-use axum::Router;
+use axum::{extract::path, Router};
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
+use redis::{AsyncCommands, JsonAsyncCommands, RedisError};
 use redis_macros::FromRedisValue;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::config::{get_app_settings, Settings};
 
 pub struct TestApp {
+    pub uuid: Uuid,
     pub settings: Settings,
     pub redis_pool: Pool<RedisConnectionManager>,
 }
@@ -25,6 +28,7 @@ impl TestApp {
         TestApp {
             redis_pool,
             settings,
+            uuid: Uuid::new_v4(),
         }
     }
 
@@ -55,6 +59,15 @@ impl TestApp {
             .get()
             .await
             .expect("Unable to get redis connection")
+    }
+
+    pub async fn clean_redis(&self, key: String) {
+        let mut connection = self.redis_connection().await;
+
+        connection
+            .json_del::<&str, &str, String>(&key, "$")
+            .await
+            .expect("Unable to clean redis");
     }
 }
 
