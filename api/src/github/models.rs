@@ -21,7 +21,7 @@ pub struct GithubRepositoryAPI {
     pub license: Option<GithubRepositoryLicenseAPI>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct GithubIssueAPI {
     pub id: u32,
     pub title: String,
@@ -32,7 +32,7 @@ pub struct GithubIssueAPI {
     pub pull_request: Option<GithubPullRequestAPI>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct GithubPullRequestAPI {
     pub html_url: String,
 }
@@ -77,7 +77,7 @@ pub struct GithubPullRequest {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum GithubIssueState {
     Open,

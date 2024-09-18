@@ -7,7 +7,7 @@ mod state;
 mod telemetry;
 
 use anyhow::Error;
-use app::AppBuilder;
+use app::App;
 
 use config::get_app_settings;
 
@@ -24,14 +24,14 @@ async fn main() -> Result<(), Error> {
     init_subscriber(subscriber);
 
     let settings = get_app_settings().expect("Unable to get server settings");
-    let app = AppBuilder::new(settings.clone()).build().await?;
+    let app = App::new(settings.clone()).await?;
 
     let addr = settings.application.get_addr()?;
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
     tracing::info!("Server running on {}", addr);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.router).await?;
 
     Ok(())
 }

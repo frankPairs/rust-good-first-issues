@@ -1,5 +1,5 @@
 use axum::{
-    extract::Request,
+    extract::{OriginalUri, Request},
     http::StatusCode,
     response::{IntoResponse, Response},
     Extension, RequestPartsExt,
@@ -69,21 +69,22 @@ where
     }
 
     fn call(&mut self, request: Request) -> Self::Future {
-        let url = request.uri();
-        let formatted_path = url
-            .path()
-            .to_string()
-            .replace("/", REDIS_KEY_DELIMITER)
-            .replacen(":", "", 1);
-
-        let redis_key = format!("errors:rate_limit:{}", formatted_path);
-
         let (mut parts, body) = request.into_parts();
         let request = Request::from_parts(parts.clone(), body);
 
         let future = self.inner.call(request);
 
         Box::pin(async move {
+            let original_uri = parts.extract::<OriginalUri>().await.unwrap();
+
+            let formatted_path = original_uri
+                .path()
+                .to_string()
+                .replace("/", REDIS_KEY_DELIMITER)
+                .replacen(":", "", 1);
+
+            let redis_key = format!("errors:rate_limit:{}", formatted_path);
+
             let Extension(state) = match parts.extract::<Extension<Arc<AppState>>>().await {
                 Ok(state) => state,
                 Err(err) => {

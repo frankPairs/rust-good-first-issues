@@ -37,3 +37,5 @@ axum_redis_utils = { path = "../axum_redis_utils" }
 
 [dev-dependencies]
 wiremock = "0.6.1"
+uuid = { version = "1.10.0", features = ["v4"] }
+serial_test = "3.1.1"

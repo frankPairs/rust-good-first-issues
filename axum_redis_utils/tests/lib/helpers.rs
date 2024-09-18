@@ -61,7 +61,7 @@ impl TestApp {
             .expect("Unable to get redis connection")
     }
 
-    pub async fn clean_redis(&self, key: String) {
+    pub async fn redis_json_del(&self, key: String) {
         let mut connection = self.redis_connection().await;
 
         connection

@@ -18,7 +18,7 @@ use super::models::{
 use super::repositories::{GithubGoodFirstIssuesHttpRepository, GithubRepositoriesHttpRepository};
 
 #[tracing::instrument(name = "Get Github repositories handler", skip(state))]
-pub async fn get_github_repositories(
+pub async fn get_repositories(
     state: State<Arc<AppState>>,
     params: Query<GetGithubRepositoriesParams>,
 ) -> Result<Response, RustGoodFirstIssuesError> {
@@ -31,7 +31,7 @@ pub async fn get_github_repositories(
 }
 
 #[tracing::instrument(name = "Get Github repository good first issues", skip(state))]
-pub async fn get_github_repository_good_first_issues(
+pub async fn get_repository_good_first_issues(
     state: State<Arc<AppState>>,
     path: Path<GetGithubRepositoryGoodFirstIssuesPathParams>,
     params: Query<GetGithubRepositoryGoodFirstIssuesParams>,

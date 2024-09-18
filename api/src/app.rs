@@ -11,18 +11,15 @@ use crate::{
 
 const REDIS_POOL_CONNECTION_TIMEOUT: u64 = 10;
 
-pub struct AppBuilder {
-    settings: Settings,
+pub struct App {
+    pub router: Router,
+    pub state: Arc<AppState>,
 }
 
-impl AppBuilder {
-    pub fn new(settings: Settings) -> Self {
-        AppBuilder { settings }
-    }
-
-    pub async fn build(&self) -> Result<Router, anyhow::Error> {
-        let github_settings = self.settings.github.clone();
-        let redis_settings = self.settings.redis.clone();
+impl App {
+    pub async fn new(settings: Settings) -> Result<App, anyhow::Error> {
+        let github_settings = settings.github.clone();
+        let redis_settings = settings.redis.clone();
 
         let redis_manager = RedisConnectionManager::new(redis_settings.url).unwrap();
         let redis_pool = bb8::Pool::builder()
@@ -34,14 +31,15 @@ impl AppBuilder {
             github_settings,
             redis_pool,
         });
-
-        Ok(Router::new()
+        let router = Router::new()
             .nest("/", HealthCheckRouter::build())
             .layer(CorsLayer::new().allow_origin(Any))
             .nest(
                 "/api/v1/github",
                 GithubRepositoryRouter::build(state.clone()),
             )
-            .with_state(state))
+            .with_state(state.clone());
+
+        Ok(App { router, state })
     }
 }

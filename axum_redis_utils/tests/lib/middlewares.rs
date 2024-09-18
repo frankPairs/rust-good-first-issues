@@ -53,7 +53,7 @@ async fn test_save_api_result_on_redis() {
     assert_eq!(res.status, 200);
     assert_eq!(res.message, "Test handler response");
 
-    test_app.clean_redis(redis_key).await;
+    test_app.redis_json_del(redis_key).await;
 }
 
 #[tokio::test]
@@ -82,7 +82,7 @@ async fn test_not_contain_cache_headers_when_response_is_from_handler() {
     assert_eq!(response.headers().contains_key("Cache-Control"), false);
 
     test_app
-        .clean_redis(format!("api:test:{}", test_app.uuid))
+        .redis_json_del(format!("api:test:{}", test_app.uuid))
         .await;
 }
 
@@ -120,7 +120,7 @@ async fn test_return_cache_response_without_expiration_time() {
     assert_eq!(response.headers().contains_key("Cache-Control"), false);
 
     test_app
-        .clean_redis(format!("api:test:{}", test_app.uuid))
+        .redis_json_del(format!("api:test:{}", test_app.uuid))
         .await;
 }
 
@@ -164,6 +164,6 @@ async fn test_return_cache_response_with_expiration_time() {
     );
 
     test_app
-        .clean_redis(format!("api:test:{}", test_app.uuid))
+        .redis_json_del(format!("api:test:{}", test_app.uuid))
         .await;
 }

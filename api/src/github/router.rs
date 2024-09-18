@@ -1,5 +1,5 @@
 use crate::{
-    github::handlers::{get_github_repositories, get_github_repository_good_first_issues},
+    github::handlers::{get_repositories, get_repository_good_first_issues},
     state::AppState,
 };
 use axum::{handler::Handler, routing, Router};
@@ -20,7 +20,7 @@ impl GithubRepositoryRouter {
         Router::new()
             .route(
                 "/repositories",
-                routing::get(get_github_repositories).layer(RedisCacheLayer::<
+                routing::get(get_repositories).layer(RedisCacheLayer::<
                     GetGithubRepositoriesResponse,
                 >::with_options(
                     state.redis_pool.clone(),
@@ -31,16 +31,14 @@ impl GithubRepositoryRouter {
             )
             .route(
                 "/repositories/:repo/good-first-issues",
-                routing::get(
-                    get_github_repository_good_first_issues.layer(RedisCacheLayer::<
-                        GetGithubRepositoryGoodFirstIssuesResponse,
-                    >::with_options(
-                        state.redis_pool.clone(),
-                        RedisCacheOptions {
-                            expiration_time: Some(GITHUB_REDIS_EXPIRATION_TIME),
-                        },
-                    )),
-                ),
+                routing::get(get_repository_good_first_issues.layer(RedisCacheLayer::<
+                    GetGithubRepositoryGoodFirstIssuesResponse,
+                >::with_options(
+                    state.redis_pool.clone(),
+                    RedisCacheOptions {
+                        expiration_time: Some(GITHUB_REDIS_EXPIRATION_TIME),
+                    },
+                ))),
             )
             .route_layer(GithubRateLimitServiceBuilder::new(state))
     }
