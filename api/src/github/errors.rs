@@ -97,3 +97,57 @@ impl GithubRateLimitError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use chrono::Duration;
+
+    use super::*;
+
+    #[test]
+    fn test_get_expiration_time_when_retry_after_is_present() {
+        let rate_limit_error = GithubRateLimitError {
+            retry_after: Some(10),
+            ratelimit_remaining: None,
+            ratelimit_reset: None,
+        };
+
+        assert_eq!(rate_limit_error.get_expiration_time(), 10);
+    }
+
+    #[test]
+    fn test_get_expiration_time_when_ratelimit_remaining_is_greater_than_zero() {
+        let rate_limit_error = GithubRateLimitError {
+            retry_after: None,
+            ratelimit_remaining: Some(10),
+            ratelimit_reset: None,
+        };
+
+        assert_eq!(rate_limit_error.get_expiration_time(), 0);
+    }
+
+    #[test]
+    fn test_get_expiration_time_when_ratelimit_reset_is_zero() {
+        let rate_limit_error = GithubRateLimitError {
+            retry_after: None,
+            ratelimit_remaining: None,
+            ratelimit_reset: Some(0),
+        };
+
+        assert_eq!(rate_limit_error.get_expiration_time(), 0);
+    }
+
+    #[test]
+    fn test_get_expiration_time_when_ratelimit_remaining_is_zero_and_ratelimit_reset_is_greater_than_zero(
+    ) {
+        let tomorrow = Utc::now() + Duration::days(1);
+
+        let rate_limit_error = GithubRateLimitError {
+            retry_after: None,
+            ratelimit_remaining: Some(0),
+            ratelimit_reset: Some(tomorrow.timestamp()),
+        };
+
+        assert_eq!(rate_limit_error.get_expiration_time(), 86399);
+    }
+}
