@@ -172,7 +172,6 @@ async fn test_get_github_repositories_error() {
         .mount(&app.github_server)
         .await;
 
-    // Second request should return the results from Redis
     let res = client
         .get(&url)
         .send()
@@ -216,7 +215,6 @@ async fn test_get_github_repositories_rate_limit_error() {
         .mount(&app.github_server)
         .await;
 
-    // Second request should return the results from Redis
     let res = client
         .get(&url)
         .send()

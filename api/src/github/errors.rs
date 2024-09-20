@@ -18,6 +18,7 @@ pub struct GithubRateLimitError {
 impl GithubRateLimitError {
     // Returns the rate limit expiration time in seconds. If the function returns a value greater than 0,
     // that value should be considered as a limit of time in seconds to do the next request to the Github API
+    //
     // It applies the logic describe on the official Github API documentation:
     // https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api?apiVersion=2022-11-28#handle-rate-limit-errors-appropriately
     pub fn get_expiration_time(&self) -> i64 {
@@ -49,7 +50,7 @@ impl GithubRateLimitError {
         // We convert the rate limit reset from UTC epoch time to seconds.
         if let Some(reset_date) = DateTime::from_timestamp(ratelimit_reset, 0) {
             let today_date = Utc::now();
-            let reset_expiration_date = today_date.signed_duration_since(reset_date);
+            let reset_expiration_date = reset_date.signed_duration_since(today_date);
 
             return reset_expiration_date.num_seconds();
         }

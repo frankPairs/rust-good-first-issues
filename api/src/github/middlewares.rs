@@ -142,7 +142,6 @@ where
                 return Ok((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response());
             }
 
-            println!("Rate limit error: {:?}", error);
             Ok((StatusCode::TOO_MANY_REQUESTS, res_headers).into_response())
         })
     }

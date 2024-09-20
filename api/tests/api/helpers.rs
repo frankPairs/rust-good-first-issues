@@ -2,15 +2,19 @@ use api::{
     app::App,
     config::{get_app_settings, Settings},
 };
+use axum::Router;
+use bb8::{Pool, PooledConnection};
+use bb8_redis::RedisConnectionManager;
 use redis::JsonAsyncCommands;
 use uuid::Uuid;
 use wiremock::MockServer;
 
 pub struct TestApp {
-    pub settings: Settings,
-    pub app: App,
-    pub github_server: MockServer,
     pub uuid: Uuid,
+    pub settings: Settings,
+    pub redis_pool: Pool<RedisConnectionManager>,
+    pub github_server: MockServer,
+    pub router: Router,
 }
 
 impl TestApp {
@@ -25,9 +29,10 @@ impl TestApp {
 
         TestApp {
             settings,
-            app,
+            redis_pool: app.state.redis_pool.clone(),
             github_server,
             uuid: Uuid::new_v4(),
+            router: app.router,
         }
     }
 
@@ -43,7 +48,7 @@ impl TestApp {
             .expect("Unable to create a tcp listener");
 
         let base_url = listener.local_addr().unwrap();
-        let router = self.app.router.clone();
+        let router = self.router.clone();
 
         tokio::spawn(async move {
             axum::serve(listener, router)
@@ -54,9 +59,15 @@ impl TestApp {
         format!("http://{}", base_url)
     }
 
+    pub async fn redis_connection(&self) -> PooledConnection<RedisConnectionManager> {
+        self.redis_pool
+            .get()
+            .await
+            .expect("Unable to get redis connection")
+    }
+
     pub async fn redis_json_del(&self, key: String) {
-        let redis_pool = self.app.state.redis_pool.clone();
-        let mut redis_connection = redis_pool.get().await.unwrap();
+        let mut redis_connection = self.redis_connection().await;
 
         let _: () = redis_connection.json_del(key, "$").await.unwrap();
     }
