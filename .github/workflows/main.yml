@@ -1,6 +1,7 @@
 name: Deploy API to AWS
 
 on:
+  pull_request:
   push:
     branches:
       - main
