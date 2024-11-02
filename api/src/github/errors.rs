@@ -38,11 +38,7 @@ impl GithubRateLimitError {
             return 0;
         }
 
-        let ratelimit_reset = match self.ratelimit_reset {
-            Some(value) => value,
-            None => 0,
-        };
-
+        let ratelimit_reset = self.ratelimit_reset.unwrap_or(0);
         if ratelimit_reset == 0 {
             return 0;
         }

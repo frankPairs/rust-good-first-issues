@@ -39,11 +39,11 @@ impl<S> Layer<S> for GithubRateLimitLayer {
 
 pub struct GithubRateLimitServiceBuilder;
 
+type GithubRateLimitServiceBuilderType =
+    ServiceBuilder<Stack<GithubRateLimitLayer, Stack<Extension<Arc<AppState>>, Identity>>>;
+
 impl GithubRateLimitServiceBuilder {
-    pub fn build(
-        state: Arc<AppState>,
-    ) -> ServiceBuilder<Stack<GithubRateLimitLayer, Stack<Extension<Arc<AppState>>, Identity>>>
-    {
+    pub fn build(state: Arc<AppState>) -> GithubRateLimitServiceBuilderType {
         ServiceBuilder::new()
             .layer(Extension(state))
             .layer(GithubRateLimitLayer::new())
@@ -102,10 +102,7 @@ where
                 }
             };
 
-            let contains_rate_limit = match redis_conn.exists(&redis_key).await {
-                Ok(value) => value,
-                Err(_) => false,
-            };
+            let contains_rate_limit = redis_conn.exists(&redis_key).await.unwrap_or(false);
 
             if contains_rate_limit {
                 return Ok(
