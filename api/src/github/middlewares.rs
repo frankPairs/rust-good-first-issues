@@ -29,7 +29,7 @@ impl GithubRateLimitLayer {
     }
 }
 
-impl<'a, S> Layer<S> for GithubRateLimitLayer {
+impl<S> Layer<S> for GithubRateLimitLayer {
     type Service = GithubRateLimitMiddleware<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
@@ -40,7 +40,7 @@ impl<'a, S> Layer<S> for GithubRateLimitLayer {
 pub struct GithubRateLimitServiceBuilder;
 
 impl GithubRateLimitServiceBuilder {
-    pub fn new(
+    pub fn build(
         state: Arc<AppState>,
     ) -> ServiceBuilder<Stack<GithubRateLimitLayer, Stack<Extension<Arc<AppState>>, Identity>>>
     {

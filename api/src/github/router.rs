@@ -40,6 +40,6 @@ impl GithubRepositoryRouter {
                     },
                 ))),
             )
-            .route_layer(GithubRateLimitServiceBuilder::new(state))
+            .route_layer(GithubRateLimitServiceBuilder::build(state))
     }
 }

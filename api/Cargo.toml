@@ -39,3 +39,20 @@ axum_redis_utils = { path = "../axum_redis_utils" }
 wiremock = "0.6.1"
 uuid = { version = "1.10.0", features = ["v4"] }
 serial_test = "3.1.1"
+
+[lints.clippy]
+single_match = "warn"
+single_match_else = "warn"
+needless_match = "warn"
+needless_late_init = "warn"
+redundant_pattern_matching = "warn"
+redundant_pattern = "warn"
+redundant_guards = "warn"
+collapsible_match = "warn"
+match_single_binding = "warn"
+match_same_arms = "warn"
+match_ref_pats = "warn"
+match_bool = "warn"
+needless_bool = "deny"
+unwrap_used = "warn"
+expect_used = "warn"
