@@ -6,11 +6,9 @@ use axum::Router;
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
 use redis::JsonAsyncCommands;
-use uuid::Uuid;
 use wiremock::MockServer;
 
 pub struct TestApp {
-    pub uuid: Uuid,
     pub settings: Settings,
     pub redis_pool: Pool<RedisConnectionManager>,
     pub github_server: MockServer,
@@ -31,7 +29,6 @@ impl TestApp {
             settings,
             redis_pool: app.state.redis_pool.clone(),
             github_server,
-            uuid: Uuid::new_v4(),
             router: app.router,
         }
     }

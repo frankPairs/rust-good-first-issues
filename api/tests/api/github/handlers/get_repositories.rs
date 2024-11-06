@@ -61,7 +61,7 @@ async fn test_get_github_repositories() {
     let body: GetGithubRepositoriesResponse = res.json().await.unwrap();
 
     assert_eq!(status, 200);
-    assert_eq!(headers.contains_key("Cache-Control"), false);
+    assert!(!headers.contains_key("Cache-Control"));
     assert_eq!(body.total_count, 1);
 
     let item = &body.items[0];
@@ -69,7 +69,7 @@ async fn test_get_github_repositories() {
     assert_eq!(item.id, 1296269);
     assert_eq!(item.url, "https://github.com/octocat");
     assert_eq!(item.name, "octocat/Hello-World");
-    assert_eq!(item.private, false);
+    assert!(!item.private);
     assert_eq!(
         item.avatar_url,
         "https://github.com/images/error/octocat_happy.gif"
@@ -77,10 +77,10 @@ async fn test_get_github_repositories() {
     assert_eq!(item.description, Some("This your first repo!".to_string()));
     assert_eq!(item.stars_count, 80);
     assert_eq!(item.open_issues_count, 0);
-    assert_eq!(item.has_issues, true);
+    assert!(item.has_issues);
     assert_eq!(item.license, None);
 
-    let redis_key = format!("api:v1:github:repositories");
+    let redis_key = "api:v1:github:repositories".to_string();
 
     app.redis_json_del(redis_key).await;
 }
@@ -124,7 +124,7 @@ async fn test_get_github_repositories_from_redis() {
     let body: GetGithubRepositoriesResponse = res.json().await.unwrap();
 
     assert_eq!(status, 200);
-    assert_eq!(headers.contains_key("Cache-Control"), true);
+    assert!(headers.contains_key("Cache-Control"));
     assert_eq!(body.total_count, 1);
 
     let item = &body.items[0];
@@ -132,7 +132,7 @@ async fn test_get_github_repositories_from_redis() {
     assert_eq!(item.id, 1296269);
     assert_eq!(item.url, "https://github.com/octocat");
     assert_eq!(item.name, "octocat/Hello-World");
-    assert_eq!(item.private, false);
+    assert!(!item.private);
     assert_eq!(
         item.avatar_url,
         "https://github.com/images/error/octocat_happy.gif"
@@ -140,10 +140,10 @@ async fn test_get_github_repositories_from_redis() {
     assert_eq!(item.description, Some("This your first repo!".to_string()));
     assert_eq!(item.stars_count, 80);
     assert_eq!(item.open_issues_count, 0);
-    assert_eq!(item.has_issues, true);
+    assert!(item.has_issues);
     assert_eq!(item.license, None);
 
-    let redis_key = format!("api:v1:github:repositories");
+    let redis_key = "api:v1:github:repositories".to_string();
 
     app.redis_json_del(redis_key).await;
 }
@@ -182,7 +182,7 @@ async fn test_get_github_repositories_error() {
 
     assert_eq!(status, 400);
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories");
+    let redis_key = "errors:rate_limit:api:v1:github:repositories".to_string();
 
     app.redis_json_del(redis_key).await;
 }
@@ -225,7 +225,7 @@ async fn test_get_github_repositories_rate_limit_error() {
 
     assert_eq!(status, 429);
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories");
+    let redis_key = "errors:rate_limit:api:v1:github:repositories".to_string();
 
     app.redis_json_del(redis_key).await;
 }

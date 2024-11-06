@@ -24,7 +24,6 @@ uuid = { version = "1.10.0", features = ["v4"] }
 
 [lints.clippy]
 single_match = "warn"
-single_match_else = "warn"
 needless_match = "warn"
 needless_late_init = "warn"
 redundant_pattern_matching = "warn"

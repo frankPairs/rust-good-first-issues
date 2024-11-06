@@ -13,6 +13,7 @@ const REDIS_POOL_CONNECTION_TIMEOUT: u64 = 10;
 
 pub struct App {
     pub router: Router,
+    #[allow(dead_code)]
     pub state: Arc<AppState>,
 }
 

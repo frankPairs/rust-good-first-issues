@@ -1,10 +1,8 @@
+use serde::Deserialize;
 use std::{
     fmt::Display,
     net::{AddrParseError, SocketAddr},
 };
-
-use dotenv;
-use serde::Deserialize;
 
 #[derive(Debug)]
 pub enum SettingsError {
