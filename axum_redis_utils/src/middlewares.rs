@@ -334,13 +334,13 @@ where
         expiration_time: Option<i64>,
     ) -> Result<(), RedisUtilsError> {
         self.redis_conn
-            .json_set(key, "$", &value)
+            .json_set::<&str, &str, ResponseType, ()>(key, "$", &value)
             .await
             .map_err(RedisUtilsError::RedisError)?;
 
         if let Some(expiration_time) = expiration_time {
             self.redis_conn
-                .expire(key, expiration_time)
+                .expire::<&str, ()>(key, expiration_time)
                 .await
                 .map_err(RedisUtilsError::RedisError)?;
         }

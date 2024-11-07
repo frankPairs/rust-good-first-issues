@@ -72,7 +72,7 @@ mod tests {
         Router,
     };
     use http_body_util::BodyExt;
-    use tower::ServiceExt;
+    use tower::util::ServiceExt;
 
     use super::*;
 
