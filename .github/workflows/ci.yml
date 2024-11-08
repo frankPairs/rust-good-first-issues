@@ -1,10 +1,7 @@
-name: Deploy API to AWS
+name: Code analysis and testing
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 jobs:
   lint:
