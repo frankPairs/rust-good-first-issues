@@ -78,8 +78,8 @@ async fn test_not_contain_cache_headers_when_response_is_from_handler() {
         .expect("Failed to execute api request.");
 
     assert_eq!(response.status().as_u16(), 200);
-    assert_eq!(response.headers().contains_key("Last-Modified"), false);
-    assert_eq!(response.headers().contains_key("Cache-Control"), false);
+    assert!(!response.headers().contains_key("Last-Modified"));
+    assert!(!response.headers().contains_key("Cache-Control"));
 
     test_app
         .redis_json_del(format!("api:test:{}", test_app.uuid))
@@ -117,7 +117,7 @@ async fn test_return_cache_response_without_expiration_time() {
 
     assert_eq!(response.status().as_u16(), 200);
     // When there is not expiration time, the Cache-Control header should not be present
-    assert_eq!(response.headers().contains_key("Cache-Control"), false);
+    assert!(!response.headers().contains_key("Cache-Control"));
 
     test_app
         .redis_json_del(format!("api:test:{}", test_app.uuid))
@@ -157,7 +157,7 @@ async fn test_return_cache_response_with_expiration_time() {
         .expect("Failed to execute api request.");
 
     assert_eq!(response.status().as_u16(), 200);
-    assert_eq!(response.headers().contains_key("Cache-Control"), true);
+    assert!(response.headers().contains_key("Cache-Control"));
     assert_eq!(
         response.headers().get("Cache-Control").unwrap(),
         "max-age=500"

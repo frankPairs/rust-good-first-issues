@@ -53,6 +53,7 @@ impl ApplicationSettings {
         format!("{}:{}", self.host, self.port).parse()
     }
 
+    #[allow(dead_code)]
     pub fn set_port(&mut self, port: u32) {
         self.port = port;
     }
@@ -85,6 +86,7 @@ impl GithubSettings {
         self.api_url.clone()
     }
 
+    #[allow(dead_code)]
     pub fn set_api_url(&mut self, api_url: String) {
         self.api_url = api_url;
     }

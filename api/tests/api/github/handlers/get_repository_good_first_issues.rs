@@ -61,9 +61,9 @@ async fn test_get_github_repository_good_first_issues() {
     let body: GetGithubRepositoryGoodFirstIssuesResponse = res.json().await.unwrap();
 
     assert_eq!(status, 200);
-    assert_eq!(headers.contains_key("Cache-Control"), false);
+    assert!(!headers.contains_key("Cache-Control"));
 
-    let item = body.items.get(0).unwrap().clone();
+    let item = body.items.first().unwrap().clone();
 
     assert_eq!(item.id, 1);
     assert_eq!(item.title, "Found a bug");
@@ -82,7 +82,7 @@ async fn test_get_github_repository_good_first_issues() {
         "https://github.com/octocat/Hello-World/pull/1347"
     );
 
-    let redis_key = format!("api:v1:github:repositories:cube:good-first-issues:owner=cube-js");
+    let redis_key = "api:v1:github:repositories:cube:good-first-issues:owner=cube-js".to_string();
 
     app.redis_json_del(redis_key).await;
 }
@@ -128,9 +128,9 @@ async fn test_get_github_repository_good_first_issues_from_redis() {
     let body: GetGithubRepositoryGoodFirstIssuesResponse = res.json().await.unwrap();
 
     assert_eq!(status, 200);
-    assert_eq!(headers.contains_key("Cache-Control"), true);
+    assert!(headers.contains_key("Cache-Control"));
 
-    let item = body.items.get(0).unwrap().clone();
+    let item = body.items.first().unwrap().clone();
 
     assert_eq!(item.id, 1);
     assert_eq!(item.title, "Found a bug");
@@ -149,7 +149,7 @@ async fn test_get_github_repository_good_first_issues_from_redis() {
         "https://github.com/octocat/Hello-World/pull/1347"
     );
 
-    let redis_key = format!("api:v1:github:repositories:cube:good-first-issues:owner=cube-js");
+    let redis_key = "api:v1:github:repositories:cube:good-first-issues:owner=cube-js".to_string();
 
     app.redis_json_del(redis_key).await;
 }
@@ -193,7 +193,8 @@ async fn test_get_github_repository_good_first_issues_error() {
 
     assert_eq!(status, 400);
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories:cube:good-first-issues");
+    let redis_key =
+        "errors:rate_limit:api:v1:github:repositories:cube:good-first-issues".to_string();
 
     app.redis_json_del(redis_key).await;
 }
@@ -241,7 +242,8 @@ async fn test_get_github_repository_good_first_issues_rate_limit_error() {
 
     assert_eq!(status, 429);
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories:cube:good-first-issues");
+    let redis_key =
+        "errors:rate_limit:api:v1:github:repositories:cube:good-first-issues".to_string();
 
     app.redis_json_del(redis_key).await;
 }

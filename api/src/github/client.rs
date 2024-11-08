@@ -30,7 +30,7 @@ impl GithubHttpClient {
         let client = Client::builder()
             .default_headers(headers)
             .build()
-            .map_err(RustGoodFirstIssuesError::ReqwestError)?;
+            .map_err(RustGoodFirstIssuesError::Reqwest)?;
 
         Ok(Self { client, settings })
     }
@@ -40,7 +40,7 @@ impl GithubHttpClient {
     }
 
     pub fn get_base_url(&self) -> Result<Url, RustGoodFirstIssuesError> {
-        Url::parse(&self.settings.get_api_url()).map_err(RustGoodFirstIssuesError::ParseUrlError)
+        Url::parse(&self.settings.get_api_url()).map_err(RustGoodFirstIssuesError::ParseUrl)
     }
 
     pub async fn parse_error_from_response(
@@ -52,12 +52,10 @@ impl GithubHttpClient {
         let result: Result<GithubApiErrorPayload, reqwest::Error> = response.json().await;
 
         match result {
-            Ok(error_payload) => RustGoodFirstIssuesError::GithubAPIError(
-                status_code,
-                headers,
-                error_payload.message,
-            ),
-            Err(err) => RustGoodFirstIssuesError::ReqwestError(err),
+            Ok(error_payload) => {
+                RustGoodFirstIssuesError::GithubAPI(status_code, headers, error_payload.message)
+            }
+            Err(err) => RustGoodFirstIssuesError::Reqwest(err),
         }
     }
 }

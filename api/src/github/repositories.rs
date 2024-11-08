@@ -34,7 +34,7 @@ impl GithubRepositoriesHttpRepository {
             .http_client
             .get_base_url()?
             .join("/search/repositories?")
-            .map_err(RustGoodFirstIssuesError::ParseUrlError)?;
+            .map_err(RustGoodFirstIssuesError::ParseUrl)?;
 
         url.query_pairs_mut()
             .append_pair("q", "language:rust")
@@ -50,7 +50,7 @@ impl GithubRepositoriesHttpRepository {
             .get(url)
             .send()
             .await
-            .map_err(RustGoodFirstIssuesError::ReqwestError)?;
+            .map_err(RustGoodFirstIssuesError::Reqwest)?;
 
         if !response.status().is_success() {
             return Err(self.http_client.parse_error_from_response(response).await);
@@ -59,7 +59,7 @@ impl GithubRepositoriesHttpRepository {
         let json: SearchGithubRepositoriesResponseAPI = response
             .json()
             .await
-            .map_err(RustGoodFirstIssuesError::ReqwestError)?;
+            .map_err(RustGoodFirstIssuesError::Reqwest)?;
 
         Ok(GetGithubRepositoriesResponse {
             total_count: json.total_count,
@@ -114,7 +114,7 @@ impl GithubGoodFirstIssuesHttpRepository {
                 "/repos/{}/{}/issues?",
                 params.owner, path_params.repo
             ))
-            .map_err(RustGoodFirstIssuesError::ParseUrlError)?;
+            .map_err(RustGoodFirstIssuesError::ParseUrl)?;
 
         url.query_pairs_mut()
             .append_pair("labels", "good first issue")
@@ -130,7 +130,7 @@ impl GithubGoodFirstIssuesHttpRepository {
             .get(url)
             .send()
             .await
-            .map_err(RustGoodFirstIssuesError::ReqwestError)?;
+            .map_err(RustGoodFirstIssuesError::Reqwest)?;
 
         if !response.status().is_success() {
             return Err(self.http_client.parse_error_from_response(response).await);
@@ -139,7 +139,7 @@ impl GithubGoodFirstIssuesHttpRepository {
         let json: Vec<GithubIssueAPI> = response
             .json()
             .await
-            .map_err(RustGoodFirstIssuesError::ReqwestError)?;
+            .map_err(RustGoodFirstIssuesError::Reqwest)?;
 
         Ok(GetGithubRepositoryGoodFirstIssuesResponse {
             items: json

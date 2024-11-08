@@ -1,7 +1,7 @@
-use axum::{extract::path, Router};
+use axum::Router;
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
-use redis::{AsyncCommands, JsonAsyncCommands, RedisError};
+use redis::JsonAsyncCommands;
 use redis_macros::FromRedisValue;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -12,8 +12,8 @@ name = "api"
 
 
 [dependencies]
-anyhow = "1.0.77"
-axum = { version = "0.7.5", features = ["tracing"] }
+anyhow = "1.0.93"
+axum = { version = "0.7.7", features = ["tracing"] }
 dotenv = "0.15.0"
 secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.193", features = ["derive"] }
@@ -23,21 +23,20 @@ tracing = "0.1.37"
 tracing-bunyan-formatter = "0.3.9"
 tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
-tower = "0.4.13"
+tower = "0.5.1"
 tower-http = { version = "0.5.0", features = ["cors"] }
 reqwest = { version = "0.12.2", features = ["json"] }
 url = "2.5.0"
 chrono = "0.4.35"
-redis = { version = "0.26.1", features = ["tokio-comp", "json"] }
-bb8-redis = "0.16.0"
-bb8 = "0.8.3"
+redis = { version = "0.27.5", features = ["tokio-comp", "json"] }
+bb8-redis = "0.17.0"
+bb8 = "0.8.6"
 redis-macros = "0.4.0"
 futures-util = "0.3.30"
 axum_redis_utils = { path = "../axum_redis_utils" }
 
 [dev-dependencies]
 wiremock = "0.6.1"
-uuid = { version = "1.10.0", features = ["v4"] }
 serial_test = "3.1.1"
 
 [lints.clippy]

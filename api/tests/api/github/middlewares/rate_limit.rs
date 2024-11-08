@@ -43,14 +43,14 @@ async fn test_save_rate_limit_error_on_redis_when_retry_after_greater_than_0() {
         .await
         .expect("Failed to execute api request.");
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories");
+    let redis_key = "errors:rate_limit:api:v1:github:repositories".to_string();
     let mut redis_conn = app.redis_connection().await;
 
     let contains_rate_limit: bool = redis_conn.exists(&redis_key).await.unwrap();
     let rate_limit_expiration_time: i64 = redis_conn.ttl(&redis_key).await.unwrap();
 
     assert_eq!(res.status().as_u16(), 429);
-    assert_eq!(contains_rate_limit, true);
+    assert!(contains_rate_limit);
     assert_eq!(rate_limit_expiration_time, 60);
 
     app.redis_json_del(redis_key).await;
@@ -90,13 +90,13 @@ async fn test_not_save_rate_limit_error_on_redis_when_retry_after_equals_to_0() 
         .await
         .expect("Failed to execute api request.");
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories");
+    let redis_key = "errors:rate_limit:api:v1:github:repositories".to_string();
     let mut redis_conn = app.redis_connection().await;
 
     let contains_rate_limit: bool = redis_conn.exists(&redis_key).await.unwrap();
 
     assert_eq!(res.status().as_u16(), 429);
-    assert_eq!(contains_rate_limit, false);
+    assert!(!contains_rate_limit);
 }
 
 #[tokio::test]
@@ -133,13 +133,13 @@ async fn test_not_save_rate_limit_error_on_redis_ratelimit_remaining_is_greater_
         .await
         .expect("Failed to execute api request.");
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories");
+    let redis_key = "errors:rate_limit:api:v1:github:repositories".to_string();
     let mut redis_conn = app.redis_connection().await;
 
     let contains_rate_limit_error: bool = redis_conn.exists(&redis_key).await.unwrap();
 
     assert_eq!(res.status().as_u16(), 429);
-    assert_eq!(contains_rate_limit_error, false);
+    assert!(!contains_rate_limit_error);
 }
 
 #[tokio::test]
@@ -176,13 +176,13 @@ async fn test_not_save_rate_limit_error_on_redis_ratelimit_reset_is_equals_to_0(
         .await
         .expect("Failed to execute api request.");
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories");
+    let redis_key = "errors:rate_limit:api:v1:github:repositories".to_string();
     let mut redis_conn = app.redis_connection().await;
 
     let contains_rate_limit_error: bool = redis_conn.exists(&redis_key).await.unwrap();
 
     assert_eq!(res.status().as_u16(), 429);
-    assert_eq!(contains_rate_limit_error, false);
+    assert!(!contains_rate_limit_error);
 }
 
 #[tokio::test]
@@ -222,14 +222,14 @@ async fn test_save_rate_limit_error_on_redis_when_ratelimit_remaining_equals_to_
         .await
         .expect("Failed to execute api request.");
 
-    let redis_key = format!("errors:rate_limit:api:v1:github:repositories");
+    let redis_key = "errors:rate_limit:api:v1:github:repositories".to_string();
     let mut redis_conn = app.redis_connection().await;
 
     let contains_rate_limit_error: bool = redis_conn.exists(&redis_key).await.unwrap();
     let rate_limit_expiration_time: i64 = redis_conn.ttl(&redis_key).await.unwrap();
 
     assert_eq!(res.status().as_u16(), 429);
-    assert_eq!(contains_rate_limit_error, true);
+    assert!(contains_rate_limit_error);
     // The comparison between today and tomorrow gives as a result one second less than 24 hours
     assert_eq!(rate_limit_expiration_time, 86399);
 

@@ -213,7 +213,7 @@ where
             }
 
             let res: Response = future.await?;
-            let res_status: StatusCode = res.status().clone();
+            let res_status: StatusCode = res.status();
 
             // If there is any response error, we return the as we do not need to build the response from the Redis response builder.
             if res_status.is_client_error() || res_status.is_server_error() {
@@ -272,14 +272,11 @@ where
 
         let mut headers: HeaderMap<HeaderValue> = HeaderMap::new();
 
-        let expiration_time = match self.redis_conn.ttl(self.redis_key).await {
-            Ok(time) => time,
-            Err(_) => None,
-        };
+        let expiration_time = self.redis_conn.ttl(self.redis_key).await.unwrap_or(None);
 
         self.set_cache_headers(&mut headers, expiration_time);
 
-        return (StatusCode::OK, headers, Json(res)).into_response();
+        (StatusCode::OK, headers, Json(res)).into_response()
     }
 
     // Builds the middleware response based on the data coming from a handler.
@@ -323,10 +320,10 @@ where
 
     // Checks if the response should be built from the cache. If the key exists in Redis, it returns true.
     async fn should_build_from_cache(&mut self) -> bool {
-        match self.redis_conn.exists(self.redis_key).await {
-            Ok(exists) => exists,
-            Err(_) => false,
-        }
+        self.redis_conn
+            .exists(self.redis_key)
+            .await
+            .unwrap_or(false)
     }
 
     // Saves the response from the handler to Redis.
@@ -337,13 +334,13 @@ where
         expiration_time: Option<i64>,
     ) -> Result<(), RedisUtilsError> {
         self.redis_conn
-            .json_set(key, "$", &value)
+            .json_set::<&str, &str, ResponseType, ()>(key, "$", &value)
             .await
             .map_err(RedisUtilsError::RedisError)?;
 
         if let Some(expiration_time) = expiration_time {
             self.redis_conn
-                .expire(key, expiration_time)
+                .expire::<&str, ()>(key, expiration_time)
                 .await
                 .map_err(RedisUtilsError::RedisError)?;
         }
@@ -359,16 +356,7 @@ where
     ) {
         // If the expiration time is less than or equal to zero, it means that the key exists but it does not contain
         // any expiration time. In this case, we do not set the Cache-Control header.
-        let expiration_time: Option<i64> = match expiration_time {
-            Some(time) => {
-                if time > 0 {
-                    Some(time)
-                } else {
-                    None
-                }
-            }
-            None => None,
-        };
+        let expiration_time: Option<i64> = expiration_time.filter(|time| *time > 0);
 
         if let Some(expiration_time) = expiration_time {
             headers.append(

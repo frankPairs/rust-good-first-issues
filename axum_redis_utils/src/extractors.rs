@@ -42,13 +42,10 @@ where
             .path()
             .to_string()
             .replace("/", REDIS_KEY_DELIMITER);
-        let query_params = match original_uri.query() {
-            Some(query) => query,
-            None => "",
-        };
+        let query_params = original_uri.query().unwrap_or("");
         let sorted_params = sorted(query_params.split("&")).join(REDIS_KEY_DELIMITER);
 
-        let mut redis_key = vec![formatted_path, sorted_params].join(REDIS_KEY_DELIMITER);
+        let mut redis_key = [formatted_path, sorted_params].join(REDIS_KEY_DELIMITER);
 
         if redis_key.starts_with(REDIS_KEY_DELIMITER) {
             redis_key.remove(0);
@@ -75,7 +72,7 @@ mod tests {
         Router,
     };
     use http_body_util::BodyExt;
-    use tower::ServiceExt;
+    use tower::util::ServiceExt;
 
     use super::*;
 

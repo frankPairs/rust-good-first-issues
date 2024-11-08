@@ -6,25 +6,25 @@ use std::{collections::HashMap, error::Error};
 
 #[derive(Debug)]
 pub enum RustGoodFirstIssuesError {
-    ReqwestError(reqwest::Error),
-    GithubAPIError(StatusCode, HeaderMap<HeaderValue>, String),
-    ParseUrlError(url::ParseError),
+    Reqwest(reqwest::Error),
+    GithubAPI(StatusCode, HeaderMap<HeaderValue>, String),
+    ParseUrl(url::ParseError),
 }
 
 impl std::fmt::Display for RustGoodFirstIssuesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RustGoodFirstIssuesError::ReqwestError(err) => {
+            RustGoodFirstIssuesError::Reqwest(err) => {
                 tracing::error!("ReqwestError url = {:?}", err.url());
                 tracing::error!("ReqwestError status = {:?}", err.status());
                 tracing::error!("ReqwestError source = {:?}", err.source());
 
                 write!(f, "ReqwestError error: {}", err)
             }
-            RustGoodFirstIssuesError::ParseUrlError(err) => {
+            RustGoodFirstIssuesError::ParseUrl(err) => {
                 write!(f, "Parse url error: {}", err)
             }
-            RustGoodFirstIssuesError::GithubAPIError(status_code, _, message) => {
+            RustGoodFirstIssuesError::GithubAPI(status_code, _, message) => {
                 write!(f, "Github API error {}: {}", status_code, message)
             }
         }
@@ -38,7 +38,7 @@ impl IntoResponse for RustGoodFirstIssuesError {
         tracing::error!("{}", err_message);
 
         match self {
-            RustGoodFirstIssuesError::GithubAPIError(status_code, headers, _) => {
+            RustGoodFirstIssuesError::GithubAPI(status_code, headers, _) => {
                 let mut rate_limit_headers: HashMap<String, &HeaderValue> = HashMap::new();
 
                 if let Some(value) = headers.get("retry-after") {
@@ -59,7 +59,7 @@ impl IntoResponse for RustGoodFirstIssuesError {
 
                 (status_code, err_message).into_response()
             }
-            RustGoodFirstIssuesError::ReqwestError(err) => (
+            RustGoodFirstIssuesError::Reqwest(err) => (
                 err.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 err_message,
             )
