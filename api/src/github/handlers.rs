@@ -8,14 +8,13 @@ use axum::{
 use std::sync::Arc;
 
 use crate::errors::RustGoodFirstIssuesError;
+use crate::github::models::GetGithubRepositoriesParams;
 use crate::state::AppState;
 
-use crate::github::models::GetGithubRepositoriesParams;
-
+use super::client::GithubHttpClient;
 use super::models::{
     GetGithubRepositoryGoodFirstIssuesParams, GetGithubRepositoryGoodFirstIssuesPathParams,
 };
-use super::repositories::{GithubGoodFirstIssuesHttpRepository, GithubRepositoriesHttpRepository};
 
 #[tracing::instrument(name = "Get Github repositories handler", skip(state))]
 pub async fn get_repositories(
@@ -23,9 +22,9 @@ pub async fn get_repositories(
     params: Query<GetGithubRepositoriesParams>,
 ) -> Result<Response, RustGoodFirstIssuesError> {
     let params = params.0;
+    let github_client = GithubHttpClient::new(state.github_settings.clone())?;
 
-    let http_repo = GithubRepositoriesHttpRepository::new(state.github_settings.clone())?;
-    let res = http_repo.get(&params).await?;
+    let res = github_client.get_rust_repositories(&params).await?;
 
     return Ok((StatusCode::OK, Json(res)).into_response());
 }
@@ -39,8 +38,11 @@ pub async fn get_repository_good_first_issues(
     let params = params.0;
     let path_params = path.0;
 
-    let http_repo = GithubGoodFirstIssuesHttpRepository::new(state.github_settings.clone())?;
-    let res = http_repo.get(&path_params, &params).await?;
+    let github_client = GithubHttpClient::new(state.github_settings.clone())?;
+
+    let res = github_client
+        .get_repository_good_first_issues(&path_params, &params)
+        .await?;
 
     return Ok((StatusCode::OK, Json(res)).into_response());
 }
