@@ -16,44 +16,6 @@ pub struct GithubRateLimitError {
 }
 
 impl GithubRateLimitError {
-    // Returns the rate limit expiration time in seconds. If the function returns a value greater than 0,
-    // that value should be considered as a limit of time in seconds to do the next request to the Github API
-    //
-    // It applies the logic describe on the official Github API documentation:
-    // https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api?apiVersion=2022-11-28#handle-rate-limit-errors-appropriately
-    pub fn get_expiration_time(&self) -> i64 {
-        // When retry_after contains a value, we should return it as expiration time. We do not need to do any conversion as Github API
-        // already returns this value in seconds
-        if let Some(retry_after) = self.retry_after {
-            return retry_after;
-        }
-
-        let ratelimit_remaining = match self.ratelimit_remaining {
-            Some(value) => value,
-            None => i64::MAX,
-        };
-
-        // When ratelimit remaining is greater than 0, it means that we did not reach the rate limit amount of requests.
-        if ratelimit_remaining > 0 {
-            return 0;
-        }
-
-        let ratelimit_reset = self.ratelimit_reset.unwrap_or(0);
-        if ratelimit_reset == 0 {
-            return 0;
-        }
-
-        // We convert the rate limit reset from UTC epoch time to seconds.
-        if let Some(reset_date) = DateTime::from_timestamp(ratelimit_reset, 0) {
-            let today_date = Utc::now();
-            let reset_expiration_date = reset_date.signed_duration_since(today_date);
-
-            return reset_expiration_date.num_seconds();
-        }
-
-        DEFAULT_RATE_LIMIT_EXP
-    }
-
     pub fn from_response_headers(headers: &HeaderMap) -> Self {
         let mut retry_after: Option<i64> = None;
         let mut ratelimit_remaining: Option<i64> = None;
@@ -91,6 +53,51 @@ impl GithubRateLimitError {
             ratelimit_reset,
             retry_after,
         }
+    }
+
+    // Returns the rate limit expiration time in seconds. If the function returns a value greater than 0,
+    // that value should be considered as a limit of time in seconds to do the next request to the Github API
+    //
+    // It applies the logic describe on the official Github API documentation:
+    // https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api?apiVersion=2022-11-28#handle-rate-limit-errors-appropriately
+    pub fn get_expiration_time(&self) -> i64 {
+        // When retry_after contains a value, we should return it as expiration time. We do not need to do any conversion as Github API
+        // already returns this value in seconds
+        if let Some(retry_after) = self.retry_after {
+            return retry_after;
+        }
+
+        let ratelimit_remaining = match self.ratelimit_remaining {
+            Some(value) => value,
+            None => i64::MAX,
+        };
+
+        // When ratelimit remaining is greater than 0, it means that we did not reach the rate limit amount of requests.
+        if ratelimit_remaining > 0 {
+            return 0;
+        }
+
+        let ratelimit_reset = self.ratelimit_reset.unwrap_or(0);
+
+        if ratelimit_reset == 0 {
+            return 0;
+        }
+
+        // We convert the rate limit reset from UTC epoch time to seconds.
+        if let Some(reset_date) = DateTime::from_timestamp(ratelimit_reset, 0) {
+            let today_date = Utc::now();
+            let reset_expiration_date = reset_date.signed_duration_since(today_date);
+
+            return reset_expiration_date.num_seconds();
+        }
+
+        DEFAULT_RATE_LIMIT_EXP
+    }
+
+    // We can consider that we exceede the rate limit when expiration time is bigger than 0.
+    // For more information, you can visit the official site https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api?apiVersion=2022-11-28#handle-rate-limit-errors-appropriately
+    pub fn is_rate_limit_exceeded(&self) -> bool {
+        self.get_expiration_time() > 0
     }
 }
 

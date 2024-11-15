@@ -2,7 +2,10 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
 };
-use std::{collections::HashMap, error::Error};
+use std::error::Error;
+
+const GITHUB_RATE_LIMIT_HEADERS: [&str; 3] =
+    ["retry-after", "x-ratelimit-remaining", "x-ratelimit-reset"];
 
 #[derive(Debug)]
 pub enum RustGoodFirstIssuesError {
@@ -39,25 +42,15 @@ impl IntoResponse for RustGoodFirstIssuesError {
 
         match self {
             RustGoodFirstIssuesError::GithubAPI(status_code, headers, _) => {
-                let mut rate_limit_headers: HashMap<String, &HeaderValue> = HashMap::new();
+                let rate_limit_headers = HeaderMap::from_iter(
+                    headers
+                        .iter()
+                        .filter(|(name, _)| GITHUB_RATE_LIMIT_HEADERS.contains(&name.as_str()))
+                        .map(|(name, value)| (name.clone(), value.clone())),
+                );
 
-                if let Some(value) = headers.get("retry-after") {
-                    rate_limit_headers.insert(String::from("retry-after"), value);
-                }
-
-                if let Some(value) = headers.get("x-ratelimit-remaining") {
-                    rate_limit_headers.insert(String::from("x-ratelimit-remaining"), value);
-                }
-
-                if let Some(value) = headers.get("x-ratelimit-reset") {
-                    rate_limit_headers.insert(String::from("x-ratelimit-reset"), value);
-                }
-
-                if !rate_limit_headers.is_empty() {
-                    return (StatusCode::TOO_MANY_REQUESTS, headers, err_message).into_response();
-                }
-
-                (status_code, err_message).into_response()
+                // Just returning the rate limit headers from Github API
+                (status_code, rate_limit_headers, err_message).into_response()
             }
             RustGoodFirstIssuesError::Reqwest(err) => (
                 err.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),

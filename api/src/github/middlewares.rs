@@ -111,13 +111,21 @@ where
             }
 
             let res: Response = future.await?;
+            let res_status = res.status();
 
-            if res.status() != StatusCode::TOO_MANY_REQUESTS {
+            // Based on Github documentation, it is possible that there is a rate limit error when status codes
+            // are 429 or 403. So when the status codes are different, we just return the response from the handler
+            // For more information, you can check the official page https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28#exceeding-the-rate-limit
+            if res_status != StatusCode::TOO_MANY_REQUESTS && res_status != StatusCode::FORBIDDEN {
                 return Ok(res);
             }
 
             let res_headers = res.headers().clone();
             let error = GithubRateLimitError::from_response_headers(&res_headers);
+
+            if !error.is_rate_limit_exceeded() {
+                return Ok(res);
+            }
 
             if let Err(err) = redis_conn
                 .json_set::<&str, &str, GithubRateLimitError, Option<String>>(
