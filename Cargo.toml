@@ -1,2 +1,0 @@
-[workspace]
-members = ["axum_redis_utils", "api"]

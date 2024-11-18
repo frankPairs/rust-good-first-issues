@@ -3,13 +3,9 @@ name = "api"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-path = "src/lib.rs"
-
 [[bin]]
 path = "src/main.rs"
 name = "api"
-
 
 [dependencies]
 anyhow = "1.0.93"
@@ -33,7 +29,6 @@ bb8-redis = "0.17.0"
 bb8 = "0.8.6"
 redis-macros = "0.4.0"
 futures-util = "0.3.30"
-http-body-util = "0.1.2"
 itertools = "0.13.0"
 
 [dev-dependencies]
