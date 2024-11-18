@@ -33,7 +33,8 @@ bb8-redis = "0.17.0"
 bb8 = "0.8.6"
 redis-macros = "0.4.0"
 futures-util = "0.3.30"
-axum_redis_utils = { path = "../axum_redis_utils" }
+http-body-util = "0.1.2"
+itertools = "0.13.0"
 
 [dev-dependencies]
 wiremock = "0.6.1"

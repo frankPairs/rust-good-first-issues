@@ -1,6 +1,7 @@
 mod app;
 mod config;
 mod errors;
+mod extractors;
 mod github;
 mod health_check;
 mod state;

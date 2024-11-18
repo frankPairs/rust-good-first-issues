@@ -12,6 +12,8 @@ pub enum RustGoodFirstIssuesError {
     Reqwest(reqwest::Error),
     GithubAPI(StatusCode, HeaderMap<HeaderValue>, String),
     ParseUrl(url::ParseError),
+    Redis(redis::RedisError),
+    RedisConnection(bb8::RunError<redis::RedisError>),
 }
 
 impl std::fmt::Display for RustGoodFirstIssuesError {
@@ -29,6 +31,12 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             }
             RustGoodFirstIssuesError::GithubAPI(status_code, _, message) => {
                 write!(f, "Github API error {}: {}", status_code, message)
+            }
+            RustGoodFirstIssuesError::Redis(err) => {
+                write!(f, "Redis error: {}", err)
+            }
+            RustGoodFirstIssuesError::RedisConnection(err) => {
+                write!(f, "Redis connection error: {}", err)
             }
         }
     }
