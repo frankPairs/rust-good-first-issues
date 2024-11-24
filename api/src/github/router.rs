@@ -7,7 +7,7 @@ use axum_redis_cache::middlewares::RedisCacheLayerBuilder;
 use std::sync::Arc;
 
 use super::{
-    middlewares::GithubRateLimitServiceBuilder,
+    middlewares::GithubRateLimitLayer,
     models::{GetGithubRepositoriesResponse, GetGithubRepositoryGoodFirstIssuesResponse},
 };
 
@@ -36,6 +36,6 @@ impl GithubRepositoryRouter {
                     ),
                 ),
             )
-            .route_layer(GithubRateLimitServiceBuilder::build(state))
+            .route_layer(GithubRateLimitLayer::new(state.redis_pool.clone()))
     }
 }
