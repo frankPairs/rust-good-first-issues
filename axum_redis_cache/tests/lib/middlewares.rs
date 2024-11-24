@@ -4,7 +4,7 @@ use axum::{
     routing::{get, Router},
     Json,
 };
-use axum_redis_utils::middlewares::{RedisCacheLayer, RedisCacheOptions};
+use axum_redis_cache::middlewares::RedisCacheLayerBuilder;
 use redis::JsonAsyncCommands;
 
 use crate::helpers::{TestApp, TestHandlerResponse};
@@ -25,9 +25,9 @@ async fn test_save_api_result_on_redis() {
     let test_app = TestApp::new().await;
     let app = Router::new().route(
         &format!("/api/test/{}", test_app.uuid),
-        get(test_handler).layer(RedisCacheLayer::<TestHandlerResponse>::new(
-            test_app.redis_pool.clone(),
-        )),
+        get(test_handler).layer(
+            RedisCacheLayerBuilder::new(test_app.redis_pool.clone()).build::<TestHandlerResponse>(),
+        ),
     );
 
     let test_app_url = test_app.spawn_app(app).await;
@@ -61,9 +61,9 @@ async fn test_not_contain_cache_headers_when_response_is_from_handler() {
     let test_app = TestApp::new().await;
     let app = Router::new().route(
         &format!("/api/test/{}", test_app.uuid),
-        get(test_handler).layer(RedisCacheLayer::<TestHandlerResponse>::new(
-            test_app.redis_pool.clone(),
-        )),
+        get(test_handler).layer(
+            RedisCacheLayerBuilder::new(test_app.redis_pool.clone()).build::<TestHandlerResponse>(),
+        ),
     );
 
     let test_app_url = test_app.spawn_app(app).await;
@@ -91,9 +91,9 @@ async fn test_return_cache_response_without_expiration_time() {
     let test_app = TestApp::new().await;
     let app = Router::new().route(
         &format!("/api/test/{}", test_app.uuid),
-        get(test_handler).layer(RedisCacheLayer::<TestHandlerResponse>::new(
-            test_app.redis_pool.clone(),
-        )),
+        get(test_handler).layer(
+            RedisCacheLayerBuilder::new(test_app.redis_pool.clone()).build::<TestHandlerResponse>(),
+        ),
     );
 
     let test_app_url = test_app.spawn_app(app).await;
@@ -129,12 +129,11 @@ async fn test_return_cache_response_with_expiration_time() {
     let test_app = TestApp::new().await;
     let app = Router::new().route(
         &format!("/api/test/{}", test_app.uuid),
-        get(test_handler).layer(RedisCacheLayer::<TestHandlerResponse>::with_options(
-            test_app.redis_pool.clone(),
-            RedisCacheOptions {
-                expiration_time: Some(500),
-            },
-        )),
+        get(test_handler).layer(
+            RedisCacheLayerBuilder::new(test_app.redis_pool.clone())
+                .with_expiration_time(500)
+                .build::<TestHandlerResponse>(),
+        ),
     );
 
     let test_app_url = test_app.spawn_app(app).await;

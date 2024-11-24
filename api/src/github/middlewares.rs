@@ -2,30 +2,27 @@ use axum::{
     extract::{OriginalUri, Request},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Extension, RequestPartsExt,
+    RequestPartsExt,
 };
+use bb8::Pool;
+use bb8_redis::RedisConnectionManager;
 use futures_util::future::BoxFuture;
 use redis::{AsyncCommands, JsonAsyncCommands};
-use std::{
-    sync::Arc,
-    task::{Context, Poll},
-};
-use tower::{
-    layer::util::{Identity, Stack},
-    Layer, Service, ServiceBuilder,
-};
+use std::task::{Context, Poll};
+use tower::{Layer, Service};
 
 use super::errors::GithubRateLimitError;
-use crate::state::AppState;
 
 const REDIS_KEY_DELIMITER: &str = ":";
 
-#[derive(Clone)]
-pub struct GithubRateLimitLayer;
+#[derive(Clone, Debug)]
+pub struct GithubRateLimitLayer {
+    redis_pool: Pool<RedisConnectionManager>,
+}
 
 impl GithubRateLimitLayer {
-    pub fn new() -> GithubRateLimitLayer {
-        GithubRateLimitLayer {}
+    pub fn new(redis_pool: Pool<RedisConnectionManager>) -> Self {
+        GithubRateLimitLayer { redis_pool }
     }
 }
 
@@ -33,25 +30,16 @@ impl<S> Layer<S> for GithubRateLimitLayer {
     type Service = GithubRateLimitMiddleware<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        GithubRateLimitMiddleware { inner }
-    }
-}
-
-pub struct GithubRateLimitServiceBuilder;
-
-type GithubRateLimitServiceBuilderType =
-    ServiceBuilder<Stack<GithubRateLimitLayer, Stack<Extension<Arc<AppState>>, Identity>>>;
-
-impl GithubRateLimitServiceBuilder {
-    pub fn build(state: Arc<AppState>) -> GithubRateLimitServiceBuilderType {
-        ServiceBuilder::new()
-            .layer(Extension(state))
-            .layer(GithubRateLimitLayer::new())
+        GithubRateLimitMiddleware {
+            inner,
+            redis_pool: self.redis_pool.clone(),
+        }
     }
 }
 
 #[derive(Clone)]
 pub struct GithubRateLimitMiddleware<S> {
+    redis_pool: Pool<RedisConnectionManager>,
     inner: S,
 }
 
@@ -69,6 +57,7 @@ where
     }
 
     fn call(&mut self, request: Request) -> Self::Future {
+        let redis_pool = self.redis_pool.clone();
         let (mut parts, body) = request.into_parts();
         let request = Request::from_parts(parts.clone(), body);
 
@@ -76,24 +65,14 @@ where
 
         Box::pin(async move {
             let original_uri = parts.extract::<OriginalUri>().await.unwrap();
-
             let formatted_path = original_uri
                 .path()
                 .to_string()
                 .replace("/", REDIS_KEY_DELIMITER)
                 .replacen(":", "", 1);
-
             let redis_key = format!("errors:rate_limit:{}", formatted_path);
 
-            let Extension(state) = match parts.extract::<Extension<Arc<AppState>>>().await {
-                Ok(state) => state,
-                Err(err) => {
-                    tracing::error!("Error when extracting state: {}", err);
-
-                    return Ok(err.into_response());
-                }
-            };
-            let mut redis_conn = match state.redis_pool.get().await {
+            let mut redis_conn = match redis_pool.get().await {
                 Ok(conn) => conn,
                 Err(err) => {
                     tracing::error!("Error when connection to Redis pool: {}", err);
@@ -102,9 +81,7 @@ where
                 }
             };
 
-            let contains_rate_limit = redis_conn.exists(&redis_key).await.unwrap_or(false);
-
-            if contains_rate_limit {
+            if redis_conn.exists(&redis_key).await.unwrap_or(false) {
                 return Ok(
                     (StatusCode::TOO_MANY_REQUESTS, "Limit of requests exceeded").into_response(),
                 );
