@@ -1,3 +1,20 @@
+//! ExtractRedisKey is an Axum extractor that extracts a Redis key from the request path and query parameters. This extractor is used within the RedisCacheLayer to generate a key for the cache.
+//!
+//! The key is constructed by concatenating the path and query parameters. Query parameters are sorted alphabetically in order to ensure the same query parameters result in the same key,
+//! independently of the order they were provided in the request.
+//!
+//! It separates the path segments and query parameters by a colon (:).
+//!
+//! For example, given the following request:
+//!
+//! GET https://domain.com/api/v1/users?name=John&age=30
+//!
+//! The key generated would be:
+//!
+//! api:v1:users:age=30:name=John
+//!
+//! When the request does contain nor path neither query parameters, it returns a 400 Bad Request error as the key would be empty.
+//!
 use axum::{
     async_trait,
     extract::{FromRequestParts, OriginalUri},
@@ -9,23 +26,6 @@ use itertools::{sorted, Itertools};
 
 const REDIS_KEY_DELIMITER: &str = ":";
 
-/// ExtractRedisKey is an Axum extractor that extracts a Redis key from the request path and query parameters. This extractor is used within the RedisCacheLayer to generate a key for the cache.
-///
-/// The key is constructed by concatenating the path and query parameters. Query parameters are sorted alphabetically in order to ensure the same query parameters result in the same key,
-/// independently of the order they were provided in the request.
-///
-/// It separates the path segments and query parameters by a colon (:).
-///
-/// For example, given the following request:
-///
-/// GET https://domain.com/api/v1/users?name=John&age=30
-///
-/// The key generated would be:
-///
-/// api:v1:users:age=30:name=John
-///
-/// When the request does contain nor path neither query parameters, it returns a 400 Bad Request error as the key would be empty.
-///
 pub struct ExtractRedisKey(pub String);
 
 #[async_trait]
