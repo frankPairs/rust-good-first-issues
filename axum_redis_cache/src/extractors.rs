@@ -7,7 +7,7 @@
 //!
 //! For example, given the following request:
 //!
-//! GET https://domain.com/api/v1/users?name=John&age=30
+//! GET <https://domain.com/api/v1/users?name=John&age=30>
 //!
 //! The key generated would be:
 //!

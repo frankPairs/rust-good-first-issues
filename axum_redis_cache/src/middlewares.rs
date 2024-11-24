@@ -10,7 +10,7 @@
 //!
 //! You can add the RedisCacheLayer to your handler by using RedisCacheLayerBuilder like in the following example.
 //!
-//! ```rust
+//! ```
 //! use axum::{handler::get, Router};
 //! use axum_redis_utils::middlewares::{RedisCacheLayer, RedisCacheOptions};
 //! use std::sync::Arc;
@@ -36,7 +36,9 @@
 //!
 //! ResponsType needs to be a type that implements Deserialize, Serialize and FromRedisValue.
 //!
-//! The middleware can be configured with the `with_options` method, which receives a `RedisCacheOptions` struct.
+//! The middleware can be configured from the RedisCacheLayerBuilder using the methods with the prefix 'with', which
+//! allows you to set just the properties that you need.
+//!
 //!
 //! ```rust
 //! use axum::{handler::get, Router};
@@ -54,14 +56,26 @@
 //! let state = Arc::new(State { redis_pool });
 //!
 //! let app = Router::new()
-//!    .route(
-//!       "/api/v1/users",
-//!      get(handler.layer(RedisCacheLayerBuilder::new(redis_pool.clone()).with_expiration_time(600).build())
-//!   )
+//!     .route(
+//!         "/api/v1/users",
+//!         get(handler.layer(
+//!             RedisCacheLayerBuilder::new(redis_pool.clone())
+//!                 .with_expiration_time(600)
+//!                 .with_path("users")
+//!                 .build(),
+//!         )),
+//!     )
 //!   .with_state(state);
 //! ```
 //!
-//! The code below it will set a expiration time of 600 seconds to the key api:v1:users. By default, any expiration time is set.
+//! But default the values of the RedisCacheOptions are the following ones:
+//!
+//! ```rust
+//! RedisCacheOptions {
+//!     expiration_time: None,
+//!     path: Some(String::from("$")),
+//! }
+//! ```
 use axum::{
     body::Body,
     extract::Request,
@@ -86,7 +100,7 @@ use super::{errors::RedisUtilsError, extractors::ExtractRedisKey};
 
 #[derive(Clone, Debug)]
 pub struct RedisCacheOptions {
-    /// A value, in seconds, for the max-age the resource may be cached. This value will be used on the Cache-Control header as 'max-age=<value>'.
+    /// A value, in seconds, for the max-age the resource may be cached. This value will be used on the Cache-Control header as 'max-age=expiration_time'.
     pub expiration_time: Option<i64>,
     /// The redis path where the JSON object is going to be saved. It uses the root by default.
     pub path: Option<String>,
@@ -105,7 +119,7 @@ impl RedisCacheLayerBuilder {
             redis_pool,
             options: RedisCacheOptions {
                 expiration_time: None,
-                path: None,
+                path: Some(String::from("$")),
             },
         }
     }
