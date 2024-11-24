@@ -1,5 +1,5 @@
 [package]
-name = "axum_redis_utils"
+name = "axum_redis_cache"
 version = "0.1.0"
 edition = "2021"
 

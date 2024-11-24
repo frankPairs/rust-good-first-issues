@@ -3,7 +3,7 @@ use crate::{
     state::AppState,
 };
 use axum::{handler::Handler, routing, Router};
-use axum_redis_utils::middlewares::{RedisCacheLayer, RedisCacheOptions};
+use axum_redis_cache::middlewares::RedisCacheLayerBuilder;
 use std::sync::Arc;
 
 use super::{
@@ -20,25 +20,21 @@ impl GithubRepositoryRouter {
         Router::new()
             .route(
                 "/repositories",
-                routing::get(get_repositories).layer(RedisCacheLayer::<
-                    GetGithubRepositoriesResponse,
-                >::with_options(
-                    state.redis_pool.clone(),
-                    RedisCacheOptions {
-                        expiration_time: Some(GITHUB_REDIS_EXPIRATION_TIME),
-                    },
-                )),
+                routing::get(get_repositories).layer(
+                    RedisCacheLayerBuilder::new(state.redis_pool.clone())
+                        .with_expiration_time(GITHUB_REDIS_EXPIRATION_TIME)
+                        .build::<GetGithubRepositoriesResponse>(),
+                ),
             )
             .route(
                 "/repositories/:repo/good-first-issues",
-                routing::get(get_repository_good_first_issues.layer(RedisCacheLayer::<
-                    GetGithubRepositoryGoodFirstIssuesResponse,
-                >::with_options(
-                    state.redis_pool.clone(),
-                    RedisCacheOptions {
-                        expiration_time: Some(GITHUB_REDIS_EXPIRATION_TIME),
-                    },
-                ))),
+                routing::get(
+                    get_repository_good_first_issues.layer(
+                        RedisCacheLayerBuilder::new(state.redis_pool.clone())
+                            .with_expiration_time(GITHUB_REDIS_EXPIRATION_TIME)
+                            .build::<GetGithubRepositoryGoodFirstIssuesResponse>(),
+                    ),
+                ),
             )
             .route_layer(GithubRateLimitServiceBuilder::build(state))
     }
