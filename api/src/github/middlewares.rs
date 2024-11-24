@@ -102,9 +102,7 @@ where
                 }
             };
 
-            let contains_rate_limit = redis_conn.exists(&redis_key).await.unwrap_or(false);
-
-            if contains_rate_limit {
+            if redis_conn.exists(&redis_key).await.unwrap_or(false) {
                 return Ok(
                     (StatusCode::TOO_MANY_REQUESTS, "Limit of requests exceeded").into_response(),
                 );
