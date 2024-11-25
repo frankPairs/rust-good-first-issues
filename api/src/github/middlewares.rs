@@ -70,6 +70,8 @@ where
                 .to_string()
                 .replace("/", REDIS_KEY_DELIMITER)
                 .replacen(":", "", 1);
+            // To build the Redis key of any rate limit error, we just use the url path, without taking into account
+            // query or route params. This is because a rate limit error is
             let redis_key = format!("errors:rate_limit:{}", formatted_path);
 
             let mut redis_conn = match redis_pool.get().await {

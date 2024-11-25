@@ -29,7 +29,8 @@
 //! let app = Router::new()
 //!    .route(
 //!       "/api/v1/users",
-//!      get(handler.layer(RedisCacheLayer::<ResponseType>::new(state.redis_pool.clone())))
+//!      get(handler.layer(RedisCacheLayer::<RedisCacheResponseValue
+//! >::new(state.redis_pool.clone())))
 //!   )
 //!   .with_state(state);
 //! ```
@@ -98,6 +99,8 @@ use tower::{Layer, Service};
 
 use super::{errors::RedisUtilsError, extractors::ExtractRedisKey};
 
+const DEFAULT_REDIS_PATH: &str = "$";
+
 #[derive(Clone, Debug)]
 pub struct RedisCacheOptions {
     /// A value, in seconds, for the max-age the resource may be cached. This value will be used on the Cache-Control header as 'max-age=expiration_time'.
@@ -119,7 +122,7 @@ impl RedisCacheLayerBuilder {
             redis_pool,
             options: RedisCacheOptions {
                 expiration_time: None,
-                path: Some(String::from("$")),
+                path: Some(DEFAULT_REDIS_PATH.to_string()),
             },
         }
     }
@@ -144,7 +147,7 @@ impl RedisCacheLayerBuilder {
         }
     }
 
-    pub fn build<ResponseType>(self) -> RedisCacheLayer<ResponseType> {
+    pub fn build<RedisCacheResponseValue>(self) -> RedisCacheLayer<RedisCacheResponseValue> {
         RedisCacheLayer {
             redis_pool: self.redis_pool,
             options: self.options,
@@ -154,17 +157,17 @@ impl RedisCacheLayerBuilder {
 }
 
 #[derive(Clone, Debug)]
-pub struct RedisCacheLayer<ResponseType> {
+pub struct RedisCacheLayer<RedisCacheResponseValue> {
     options: RedisCacheOptions,
     redis_pool: Pool<RedisConnectionManager>,
-    phantom_data: PhantomData<ResponseType>,
+    phantom_data: PhantomData<RedisCacheResponseValue>,
 }
 
-impl<S, ResponseType> Layer<S> for RedisCacheLayer<ResponseType>
+impl<S, RedisCacheResponseValue> Layer<S> for RedisCacheLayer<RedisCacheResponseValue>
 where
-    ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
+    RedisCacheResponseValue: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
 {
-    type Service = RedisCacheMiddleware<S, ResponseType>;
+    type Service = RedisCacheMiddleware<S, RedisCacheResponseValue>;
 
     fn layer(&self, inner: S) -> Self::Service {
         RedisCacheMiddleware {
@@ -177,18 +180,19 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub struct RedisCacheMiddleware<S, ResponseType> {
+pub struct RedisCacheMiddleware<S, RedisCacheResponseValue> {
     inner: S,
     redis_pool: Pool<RedisConnectionManager>,
     options: RedisCacheOptions,
-    phantom_data: PhantomData<ResponseType>,
+    phantom_data: PhantomData<RedisCacheResponseValue>,
 }
 
-impl<S, ResponseType> Service<Request> for RedisCacheMiddleware<S, ResponseType>
+impl<S, RedisCacheResponseValue> Service<Request>
+    for RedisCacheMiddleware<S, RedisCacheResponseValue>
 where
     S: Service<Request, Response = Response> + Send + 'static,
     S::Future: Send + 'static,
-    ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
+    RedisCacheResponseValue: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
 {
     type Response = S::Response;
     type Error = S::Error;
@@ -228,9 +232,12 @@ where
             };
 
             if redis_conn.exists(&redis_key).await.unwrap_or(false) {
-                let redis_response_builder = RedisResponseBuilder::new(redis_conn, &redis_key);
+                let redis_response_builder =
+                    RedisResponseBuilder::new(redis_conn, &redis_key, &options);
 
-                return Ok(redis_response_builder.build::<ResponseType>().await);
+                return Ok(redis_response_builder
+                    .build::<RedisCacheResponseValue>()
+                    .await);
             }
 
             let res: Response = future.await?;
@@ -243,9 +250,11 @@ where
 
             // It builds the response from the handler and saves it to Redis before returning it.
             let handler_response_builder =
-                HandlerResponseBuilder::new(redis_conn, &redis_key, options);
+                HandlerResponseBuilder::new(redis_conn, &redis_key, &options);
 
-            Ok(handler_response_builder.build::<ResponseType>(res).await)
+            Ok(handler_response_builder
+                .build::<RedisCacheResponseValue>(res)
+                .await)
         })
     }
 }
@@ -254,13 +263,19 @@ where
 struct RedisResponseBuilder<'a> {
     redis_conn: PooledConnection<'a, RedisConnectionManager>,
     redis_key: &'a str,
+    options: &'a RedisCacheOptions,
 }
 
 impl<'a> RedisResponseBuilder<'a> {
-    fn new(redis_conn: PooledConnection<'a, RedisConnectionManager>, redis_key: &'a str) -> Self {
+    fn new(
+        redis_conn: PooledConnection<'a, RedisConnectionManager>,
+        redis_key: &'a str,
+        options: &'a RedisCacheOptions,
+    ) -> Self {
         RedisResponseBuilder {
             redis_conn,
             redis_key,
+            options,
         }
     }
 
@@ -283,16 +298,22 @@ impl<'a> RedisResponseBuilder<'a> {
     }
 
     async fn build<
-        ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
+        RedisCacheResponseValue: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
     >(
         mut self,
     ) -> Response {
-        let res: ResponseType = match self.redis_conn.json_get(self.redis_key, "$").await {
-            Ok(json) => json,
-            Err(err) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
-            }
-        };
+        let redis_path = self
+            .options
+            .path
+            .clone()
+            .unwrap_or(DEFAULT_REDIS_PATH.to_string());
+        let res: RedisCacheResponseValue =
+            match self.redis_conn.json_get(self.redis_key, redis_path).await {
+                Ok(json) => json,
+                Err(err) => {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
+                }
+            };
 
         let mut headers: HeaderMap<HeaderValue> = HeaderMap::new();
 
@@ -309,14 +330,14 @@ impl<'a> RedisResponseBuilder<'a> {
 struct HandlerResponseBuilder<'a> {
     redis_conn: PooledConnection<'a, RedisConnectionManager>,
     redis_key: &'a str,
-    options: RedisCacheOptions,
+    options: &'a RedisCacheOptions,
 }
 
 impl<'a> HandlerResponseBuilder<'a> {
     fn new(
         redis_conn: PooledConnection<'a, RedisConnectionManager>,
         redis_key: &'a str,
-        options: RedisCacheOptions,
+        options: &'a RedisCacheOptions,
     ) -> Self {
         HandlerResponseBuilder {
             redis_conn,
@@ -327,16 +348,22 @@ impl<'a> HandlerResponseBuilder<'a> {
 
     // Saves the response from the handler to Redis.
     async fn save_response_to_redis<
-        ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
+        RedisCacheResponseValue: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
     >(
         &mut self,
         key: &str,
-        value: ResponseType,
+        value: RedisCacheResponseValue,
         expiration_time: Option<i64>,
     ) -> Result<(), RedisUtilsError> {
+        let redis_path = self
+            .options
+            .path
+            .clone()
+            .unwrap_or(DEFAULT_REDIS_PATH.to_string());
+
         // Save response to Redis
         self.redis_conn
-            .json_set::<&str, &str, ResponseType, ()>(key, "$", &value)
+            .json_set::<&str, &str, RedisCacheResponseValue, ()>(key, &redis_path, &value)
             .await
             .map_err(RedisUtilsError::Redis)?;
 
@@ -352,7 +379,7 @@ impl<'a> HandlerResponseBuilder<'a> {
     }
 
     async fn build<
-        ResponseType: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
+        RedisCacheResponseValue: DeserializeOwned + FromRedisValue + Serialize + Debug + Send + Sync,
     >(
         mut self,
         res: Response,
@@ -371,7 +398,7 @@ impl<'a> HandlerResponseBuilder<'a> {
                 return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
             }
         };
-        let res_body: ResponseType = match serde_json::from_str(&res_json_str) {
+        let res_body: RedisCacheResponseValue = match serde_json::from_str(&res_json_str) {
             Ok(body) => body,
             Err(err) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
