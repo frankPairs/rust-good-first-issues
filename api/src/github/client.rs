@@ -172,7 +172,7 @@ impl GithubHttpClient {
         })
     }
 
-    pub async fn parse_error_from_response(
+    async fn parse_error_from_response(
         &self,
         response: reqwest::Response,
     ) -> RustGoodFirstIssuesError {
