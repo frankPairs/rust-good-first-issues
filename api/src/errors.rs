@@ -42,6 +42,8 @@ impl IntoResponse for RustGoodFirstIssuesError {
 
         match self {
             RustGoodFirstIssuesError::GithubAPI(status_code, headers, _) => {
+                // It just returns the rate limit headers. This is because the other headers from Github are not necessary
+                // on this project.
                 let rate_limit_headers = HeaderMap::from_iter(
                     headers
                         .iter()
