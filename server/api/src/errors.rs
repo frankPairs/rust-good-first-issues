@@ -2,6 +2,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
 };
+use redis::RedisError;
 use std::error::Error;
 
 const GITHUB_RATE_LIMIT_HEADERS: [&str; 3] =
@@ -12,6 +13,8 @@ pub enum RustGoodFirstIssuesError {
     Reqwest(reqwest::Error),
     GithubAPI(StatusCode, HeaderMap<HeaderValue>, String),
     ParseUrl(url::ParseError),
+    Redis(RedisError),
+    RedisConnection(bb8::RunError<redis::RedisError>),
 }
 
 impl std::fmt::Display for RustGoodFirstIssuesError {
@@ -29,6 +32,17 @@ impl std::fmt::Display for RustGoodFirstIssuesError {
             }
             RustGoodFirstIssuesError::GithubAPI(status_code, _, message) => {
                 write!(f, "Github API error {}: {}", status_code, message)
+            }
+            RustGoodFirstIssuesError::Redis(err) => {
+                let error_msg = format!("Redis error: {}", err);
+
+                write!(f, "{}", error_msg)
+            }
+
+            RustGoodFirstIssuesError::RedisConnection(err) => {
+                let error_msg = format!("Redis connection error: {}", err);
+
+                write!(f, "{}", error_msg)
             }
         }
     }
