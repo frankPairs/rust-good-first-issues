@@ -2,12 +2,12 @@ use crate::{
     github::handlers::{get_repositories, get_repository_good_first_issues},
     state::AppState,
 };
-use axum::{handler::Handler, routing, Router};
+use axum::{handler::Handler, middleware, routing, Router};
 use axum_redis_cache::middlewares::RedisCacheLayerBuilder;
 use std::sync::Arc;
 
 use super::{
-    middlewares::GithubRateLimitLayer,
+    middlewares::rate_limit_middleware,
     models::{GetGithubRepositoriesResponse, GetGithubRepositoryGoodFirstIssuesResponse},
 };
 
@@ -36,6 +36,10 @@ impl GithubRepositoryRouter {
                     ),
                 ),
             )
-            .route_layer(GithubRateLimitLayer::new(state.redis_pool.clone()))
+            .route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                rate_limit_middleware,
+            ))
+            .with_state(state)
     }
 }
