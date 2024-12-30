@@ -1,4 +1,4 @@
-name: Code analysis and testing
+name: Server code analysis and testing
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ jobs:
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -y | sh
 
       - name: Run rust linter
-        run: cargo clippy -- -D warnings
+        run: cd server && cargo clippy -- -D warnings
 
   formatting:
     runs-on: ubuntu-latest
@@ -28,7 +28,7 @@ jobs:
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -y | sh
 
       - name: Run formatter check
-        run: cargo fmt --all -- --check
+        run: cd server && cargo fmt --all -- --check
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -41,7 +41,7 @@ jobs:
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -y | sh
 
       - name: Run Unit tests
-        run: cargo test --lib --bins
+        run: cd server && cargo test --lib --bins
 
 
 
